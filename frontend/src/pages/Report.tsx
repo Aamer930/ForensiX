@@ -7,41 +7,54 @@ export default function Report() {
   const reportUrl = getReportUrl(jobId!)
 
   return (
-    <div className="min-h-screen p-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="scanlines min-h-screen grid-bg px-4 py-6 max-w-5xl mx-auto">
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 fade-in-up">
         <div>
-          <h1 className="text-2xl font-bold">
-            <span className="text-accent">Forensic</span> Report
+          <h1 className="text-2xl font-bold font-mono">
+            <span className="neon-text">Forensic</span>
+            <span className="text-white"> Report</span>
           </h1>
-          <p className="text-muted text-sm font-mono mt-0.5">job/{jobId?.slice(0, 8)}...</p>
+          <p className="text-xs font-mono text-[#334155] mt-0.5">
+            JOB/<span className="text-[#475569]">{jobId?.slice(0, 12)}...</span>
+          </p>
         </div>
         <div className="flex gap-3">
           <a
             href={reportUrl}
             download={`forensix-report-${jobId?.slice(0, 8)}.pdf`}
-            className="px-5 py-2.5 rounded-xl bg-accent text-dark font-semibold text-sm hover:bg-accent/90 transition-colors"
+            className="px-5 py-2.5 rounded-lg font-mono text-sm btn-neon cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500/50"
           >
             ↓ Download PDF
           </a>
           <button
             onClick={() => navigate(`/results/${jobId}`)}
-            className="px-4 py-2 rounded-xl bg-surface border border-border text-sm text-white hover:border-accent/50 transition-colors"
+            className="px-4 py-2 rounded-lg border border-[#1E293B] font-mono text-sm text-[#64748B] hover:border-green-500/30 hover:text-white transition-colors cursor-pointer"
           >
-            ← Back to Results
+            ← Results
           </button>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border overflow-hidden bg-white" style={{ height: '80vh' }}>
+      {/* PDF preview */}
+      <div className="rounded-xl border border-[#1E293B] overflow-hidden fade-in-up-1"
+        style={{ height: '78vh' }}>
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1E293B] bg-[#0F172A]">
+          <span className="w-2 h-2 rounded-full bg-green-500 pulse-glow" />
+          <span className="text-xs font-mono text-[#334155]">forensix-report.pdf</span>
+          <span className="ml-auto text-xs font-mono text-[#1E293B]">PDF PREVIEW</span>
+        </div>
         <iframe
           src={reportUrl}
-          className="w-full h-full"
+          className="w-full bg-white"
+          style={{ height: 'calc(100% - 40px)' }}
           title="ForensiX PDF Report"
         />
       </div>
 
-      <p className="text-muted text-xs text-center mt-4">
-        If the preview doesn't load, use the Download button above.
+      <p className="text-center text-[#1E293B] text-xs font-mono mt-4 fade-in-up-2">
+        If preview doesn't load — use the Download button above
       </p>
     </div>
   )

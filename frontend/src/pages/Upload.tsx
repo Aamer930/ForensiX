@@ -1,12 +1,31 @@
-import { useState, useCallback, DragEvent } from 'react'
+import { useState, useCallback, DragEvent, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { uploadFile, uploadSample } from '../lib/api'
+
+const FEATURES = [
+  { icon: '⬡', label: 'Memory Dumps' },
+  { icon: '⬡', label: 'PE Executables' },
+  { icon: '⬡', label: 'Log Files' },
+  { icon: '⬡', label: 'Disk Images' },
+]
 
 export default function Upload() {
   const navigate = useNavigate()
   const [dragging, setDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [typed, setTyped] = useState('')
+
+  const tagline = 'Autonomous Forensic Agent'
+  useEffect(() => {
+    let i = 0
+    const t = setInterval(() => {
+      setTyped(tagline.slice(0, i + 1))
+      i++
+      if (i >= tagline.length) clearInterval(t)
+    }, 50)
+    return () => clearInterval(t)
+  }, [])
 
   const handleFile = useCallback(async (file: File) => {
     setLoading(true)
@@ -40,13 +59,36 @@ export default function Upload() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4">
+    <div className="scanlines min-h-screen grid-bg flex flex-col items-center justify-center px-4 relative overflow-hidden">
+
+      {/* Radial glow behind logo */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%)' }} />
+
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-4 border-b border-[#1E293B]">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-500 pulse-glow" />
+          <span className="text-xs font-mono text-[#64748B]">FORENSIX v1.0</span>
+        </div>
+        <div className="flex gap-4 text-xs font-mono text-[#64748B]">
+          <span>SYS:READY</span>
+          <span className="neon-text">●</span>
+          <span>AI:ONLINE</span>
+        </div>
+      </div>
+
       {/* Logo */}
-      <div className="mb-10 text-center">
-        <h1 className="text-5xl font-bold tracking-tight">
-          <span className="text-accent">Forens</span><span className="text-white">iX</span>
+      <div className="mb-10 text-center fade-in-up">
+        <h1
+          className="text-7xl font-bold tracking-tight font-mono glitch cursor-default select-none"
+          data-text="ForensiX"
+        >
+          <span className="neon-text">Forens</span><span className="text-white">iX</span>
         </h1>
-        <p className="text-muted mt-2 text-sm">Autonomous Forensic Agent — Powered by Claude AI</p>
+        <p className="mt-3 text-sm font-mono text-[#64748B] h-5">
+          {typed}<span className="cursor-blink">_</span>
+        </p>
       </div>
 
       {/* Drop zone */}
@@ -54,54 +96,89 @@ export default function Upload() {
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        onClick={() => document.getElementById('file-input')?.click()}
+        onClick={() => !loading && document.getElementById('file-input')?.click()}
         className={`
-          w-full max-w-xl border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer
-          transition-all duration-200
-          ${dragging ? 'border-accent bg-accent/5 scale-[1.01]' : 'border-border hover:border-accent/50 hover:bg-surface/50'}
+          relative w-full max-w-lg border rounded-xl p-10 text-center cursor-pointer
+          transition-all duration-300 fade-in-up-1 overflow-hidden
+          ${dragging
+            ? 'border-green-500 bg-green-500/5 neon-border'
+            : 'border-[#1E293B] hover:border-green-500/40 hover:bg-green-500/5'
+          }
         `}
+        style={{ background: 'rgba(15,23,42,0.8)' }}
       >
+        {/* Scan sweep */}
+        {dragging && <div className="scan-sweep" />}
+
         <input
           id="file-input"
           type="file"
           className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
         />
-        <div className="text-4xl mb-4">🔍</div>
-        <p className="text-white font-medium mb-1">Drop forensic artifact here</p>
-        <p className="text-muted text-sm">Memory dumps · Log files · PE executables · Disk images</p>
-        <p className="text-muted text-xs mt-2">Max 500MB</p>
+
+        {/* Upload icon */}
+        <div className={`mb-4 mx-auto w-16 h-16 flex items-center justify-center transition-all duration-300 ${dragging ? 'float' : ''}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+            className={`w-12 h-12 transition-colors duration-300 ${dragging ? 'text-green-500' : 'text-[#334155]'}`}>
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+          </svg>
+        </div>
+
+        <p className="text-white font-medium mb-1 font-mono">
+          {dragging ? 'Release to analyse' : 'Drop forensic artefact here'}
+        </p>
+        <p className="text-[#64748B] text-sm">or click to browse</p>
+
+        {/* Supported types */}
+        <div className="flex flex-wrap justify-center gap-2 mt-5">
+          {FEATURES.map((f) => (
+            <span key={f.label}
+              className="px-3 py-1 rounded-full border border-[#1E293B] text-xs font-mono text-[#64748B] bg-[#0F172A]">
+              {f.label}
+            </span>
+          ))}
+        </div>
+        <p className="text-[#334155] text-xs mt-3 font-mono">MAX 500MB</p>
       </div>
 
-      <div className="flex items-center gap-4 mt-5 w-full max-w-xl">
-        <hr className="flex-1 border-border" />
-        <span className="text-muted text-xs">or</span>
-        <hr className="flex-1 border-border" />
+      {/* Divider */}
+      <div className="flex items-center gap-4 mt-5 w-full max-w-lg fade-in-up-2">
+        <div className="flex-1 h-px bg-[#1E293B]" />
+        <span className="text-[#334155] text-xs font-mono">OR</span>
+        <div className="flex-1 h-px bg-[#1E293B]" />
       </div>
 
+      {/* Load sample button */}
       <button
         onClick={onLoadSample}
         disabled={loading}
-        className="mt-5 px-6 py-2.5 rounded-xl bg-surface border border-border text-sm text-white hover:border-accent/60 hover:text-accent transition-colors disabled:opacity-50"
+        className="mt-5 px-6 py-2.5 rounded-lg font-mono text-sm btn-neon disabled:opacity-40 disabled:cursor-not-allowed fade-in-up-3 focus:outline-none focus:ring-2 focus:ring-green-500/50"
       >
-        Load Demo Sample <span className="text-muted text-xs ml-1">(cridex.vmem)</span>
+        {loading ? (
+          <span className="flex items-center gap-2">
+            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Initialising...
+          </span>
+        ) : (
+          <>Load Demo Sample <span className="opacity-50 ml-1">cridex.vmem</span></>
+        )}
       </button>
 
-      {loading && (
-        <div className="mt-6 flex items-center gap-3 text-accent text-sm">
-          <span className="animate-spin text-lg">⟳</span>
-          Uploading and starting analysis...
-        </div>
-      )}
-
+      {/* Error */}
       {error && (
-        <div className="mt-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm max-w-xl w-full">
-          {error}
+        <div className="mt-4 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-mono max-w-lg w-full fade-in-up">
+          <span className="mr-2">✗</span>{error}
         </div>
       )}
 
-      <p className="text-muted text-xs mt-10">
-        University Project — ForensiX v1.0
+      {/* Footer */}
+      <p className="absolute bottom-4 text-[#1E293B] text-xs font-mono fade-in-up-4">
+        UNIVERSITY PROJECT — FORENSIX AUTONOMOUS FORENSIC AGENT
       </p>
     </div>
   )

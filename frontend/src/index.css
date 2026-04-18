@@ -1,18 +1,210 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --neon: #22C55E;
+  --neon-dim: rgba(34, 197, 94, 0.15);
+  --neon-glow: 0 0 10px #22C55E, 0 0 30px rgba(34, 197, 94, 0.4);
+  --bg: #020617;
+  --surface: #0F172A;
+  --surface2: #1E293B;
+  --border: #1E293B;
+  --text: #F8FAFC;
+  --muted: #64748B;
+}
+
+* { box-sizing: border-box; }
+
 body {
-  @apply bg-dark text-white font-sans antialiased;
-  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Fira Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-.font-mono {
-  font-family: 'JetBrains Mono', monospace;
+/* ── Scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+
+/* ── Scanlines overlay ─────────────────────────────── */
+.scanlines::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { @apply bg-surface; }
-::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+/* ── Grid background ───────────────────────────────── */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(34,197,94,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,197,94,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Neon text ─────────────────────────────────────── */
+.neon-text {
+  color: var(--neon);
+  text-shadow: var(--neon-glow);
+}
+
+.neon-border {
+  border-color: var(--neon);
+  box-shadow: 0 0 8px rgba(34,197,94,0.3), inset 0 0 8px rgba(34,197,94,0.05);
+}
+
+/* ── Glitch animation ──────────────────────────────── */
+@keyframes glitch {
+  0%, 100% { clip-path: inset(0 0 100% 0); transform: translate(0); }
+  10% { clip-path: inset(10% 0 60% 0); transform: translate(-3px, 1px); }
+  20% { clip-path: inset(50% 0 20% 0); transform: translate(3px, -1px); }
+  30% { clip-path: inset(80% 0 5% 0);  transform: translate(-2px, 2px); }
+  40% { clip-path: inset(30% 0 50% 0); transform: translate(2px, -2px); }
+  50% { clip-path: inset(0 0 0 0);     transform: translate(0); }
+}
+
+@keyframes glitch2 {
+  0%, 100% { clip-path: inset(100% 0 0 0); transform: translate(0); }
+  10% { clip-path: inset(40% 0 40% 0); transform: translate(3px, -1px); color: #f00; }
+  20% { clip-path: inset(70% 0 10% 0); transform: translate(-3px, 1px); }
+  30% { clip-path: inset(20% 0 70% 0); transform: translate(2px, 2px); color: #0ff; }
+  40% { clip-path: inset(0 0 80% 0);   transform: translate(-2px, -2px); }
+  50% { clip-path: inset(0 0 0 0);     transform: translate(0); }
+}
+
+.glitch {
+  position: relative;
+}
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.glitch:hover::before {
+  opacity: 0.8;
+  animation: glitch 0.4s steps(1) forwards;
+  color: #0ff;
+}
+.glitch:hover::after {
+  opacity: 0.8;
+  animation: glitch2 0.4s steps(1) 0.05s forwards;
+  color: #f0f;
+}
+
+/* ── Cursor blink ──────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.cursor-blink { animation: blink 1s step-end infinite; }
+
+/* ── Fade in up ────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 0.5s ease forwards; }
+.fade-in-up-1 { animation: fadeInUp 0.5s ease 0.1s both; }
+.fade-in-up-2 { animation: fadeInUp 0.5s ease 0.2s both; }
+.fade-in-up-3 { animation: fadeInUp 0.5s ease 0.3s both; }
+.fade-in-up-4 { animation: fadeInUp 0.5s ease 0.4s both; }
+
+/* ── Pulse glow ────────────────────────────────────── */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(34,197,94,0.3); }
+  50%       { box-shadow: 0 0 20px rgba(34,197,94,0.6), 0 0 40px rgba(34,197,94,0.2); }
+}
+.pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+
+/* ── Scan line sweep ───────────────────────────────── */
+@keyframes scanSweep {
+  0%   { top: -10%; }
+  100% { top: 110%; }
+}
+.scan-sweep {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--neon), transparent);
+  animation: scanSweep 3s linear infinite;
+  opacity: 0.3;
+}
+
+/* ── Terminal typing ───────────────────────────────── */
+@keyframes typing {
+  from { width: 0; }
+  to   { width: 100%; }
+}
+
+/* ── Float ─────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+.float { animation: float 4s ease-in-out infinite; }
+
+/* ── Spin slow ─────────────────────────────────────── */
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.spin-slow { animation: spinSlow 8s linear infinite; }
+
+/* ── Neon button ───────────────────────────────────── */
+.btn-neon {
+  background: transparent;
+  border: 1px solid var(--neon);
+  color: var(--neon);
+  position: relative;
+  overflow: hidden;
+  transition: color 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+}
+.btn-neon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--neon);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+  z-index: -1;
+}
+.btn-neon:hover {
+  color: #020617;
+  box-shadow: var(--neon-glow);
+}
+.btn-neon:hover::before { transform: scaleX(1); }
+
+/* ── Card hover ────────────────────────────────────── */
+.card-hover {
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+  cursor: pointer;
+}
+.card-hover:hover {
+  border-color: rgba(34,197,94,0.4);
+  box-shadow: 0 0 20px rgba(34,197,94,0.1);
+  transform: translateY(-2px);
+}
+
+/* ── Reduce motion ─────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

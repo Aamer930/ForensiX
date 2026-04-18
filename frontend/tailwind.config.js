@@ -4,14 +4,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        accent: '#00C9A7',
-        dark: '#0D1117',
-        surface: '#161B22',
-        border: '#30363D',
-        muted: '#8B949E',
+        neon:    '#22C55E',
+        dark:    '#020617',
+        surface: '#0F172A',
+        surface2:'#1E293B',
+        border:  '#1E293B',
+        muted:   '#64748B',
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'Courier New', 'monospace'],
+        mono: ['Fira Code', 'Courier New', 'monospace'],
+        sans: ['Fira Sans', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        neon: '0 0 10px #22C55E, 0 0 30px rgba(34,197,94,0.4)',
       },
     },
   },

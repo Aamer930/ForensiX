@@ -4,6 +4,15 @@ import { getJob, type Job } from '../lib/api'
 import Timeline from '../components/Timeline'
 import EvidenceTable from '../components/EvidenceTable'
 
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <span className="text-xs font-mono text-[#334155] uppercase tracking-widest">{label}</span>
+      <div className="flex-1 h-px bg-gradient-to-r from-green-500/30 to-transparent" />
+    </div>
+  )
+}
+
 export default function Results() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
@@ -12,92 +21,115 @@ export default function Results() {
 
   useEffect(() => {
     if (!jobId) return
-    getJob(jobId)
-      .then(setJob)
-      .catch(e => setError(e.message))
+    getJob(jobId).then(setJob).catch(e => setError(e.message))
   }, [jobId])
 
   if (error) return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-red-400">{error}</p>
+      <p className="text-red-400 font-mono text-sm">✗ {error}</p>
     </div>
   )
 
   if (!job) return (
     <div className="min-h-screen flex items-center justify-center">
-      <span className="animate-spin text-accent text-3xl">⟳</span>
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
+        <p className="text-xs font-mono text-[#334155]">Loading results...</p>
+      </div>
     </div>
   )
 
   const c = job.correlation
 
   return (
-    <div className="min-h-screen p-6 max-w-4xl mx-auto">
+    <div className="scanlines min-h-screen grid-bg px-4 py-8 max-w-4xl mx-auto">
+
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-8 fade-in-up">
         <div>
-          <h1 className="text-3xl font-bold">
-            <span className="text-accent">Analysis</span> Results
+          <h1 className="text-3xl font-bold font-mono">
+            <span className="neon-text">Analysis</span>
+            <span className="text-white"> Results</span>
           </h1>
-          <p className="text-muted text-sm mt-1 font-mono">{job.filename} · {job.file_type}</p>
+          <p className="text-xs font-mono text-[#334155] mt-1">
+            {job.filename}
+            <span className="mx-2 text-[#1E293B]">·</span>
+            <span className="text-purple-400">{job.file_type}</span>
+            <span className="mx-2 text-[#1E293B]">·</span>
+            <span className="text-green-500">{job.status.toUpperCase()}</span>
+          </p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={() => navigate(`/report/${jobId}`)}
-            className="px-4 py-2 rounded-xl bg-accent text-dark text-sm font-semibold hover:bg-accent/90 transition-colors"
+            className="px-4 py-2 rounded-lg font-mono text-sm btn-neon cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500/50"
           >
-            Download PDF →
+            Export PDF →
           </button>
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 rounded-xl bg-surface border border-border text-sm text-white hover:border-accent/50 transition-colors"
+            className="px-4 py-2 rounded-lg border border-[#1E293B] font-mono text-sm text-[#64748B] hover:border-green-500/30 hover:text-white transition-colors cursor-pointer"
           >
-            New Analysis
+            ← New
           </button>
         </div>
       </div>
 
-      {/* Attack Hypothesis */}
-      <section className="mb-8 p-5 rounded-2xl bg-surface border border-border">
-        <h2 className="text-xs uppercase tracking-widest text-muted mb-3 font-medium">Attack Hypothesis</h2>
-        <p className="text-white leading-relaxed text-base">
-          {c?.hypothesis ?? 'No hypothesis generated.'}
-        </p>
+      {/* Hypothesis */}
+      <section className="mb-6 fade-in-up-1">
+        <SectionHeader label="Attack Hypothesis" />
+        <div className="p-5 rounded-xl border border-[#1E293B] relative overflow-hidden"
+          style={{ background: 'rgba(15,23,42,0.8)' }}>
+          <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-500 to-transparent rounded-l-xl" />
+          <p className="text-[#CBD5E1] leading-relaxed pl-3">
+            {c?.hypothesis ?? 'No hypothesis generated.'}
+          </p>
+        </div>
       </section>
 
       {/* Summary */}
       {c?.summary && (
-        <section className="mb-8 p-5 rounded-2xl bg-surface border border-border">
-          <h2 className="text-xs uppercase tracking-widest text-muted mb-3 font-medium">Executive Summary</h2>
-          <p className="text-muted leading-relaxed text-sm">{c.summary}</p>
+        <section className="mb-6 fade-in-up-1">
+          <SectionHeader label="Executive Summary" />
+          <div className="p-5 rounded-xl border border-[#1E293B]" style={{ background: 'rgba(15,23,42,0.6)' }}>
+            <p className="text-[#64748B] leading-relaxed text-sm">{c.summary}</p>
+          </div>
         </section>
       )}
 
       {/* Timeline */}
-      <section className="mb-8">
-        <h2 className="text-xs uppercase tracking-widest text-muted mb-4 font-medium">Incident Timeline</h2>
-        <div className="p-5 rounded-2xl bg-surface border border-border">
+      <section className="mb-6 fade-in-up-2">
+        <SectionHeader label="Incident Timeline" />
+        <div className="p-5 rounded-xl border border-[#1E293B]" style={{ background: 'rgba(15,23,42,0.6)' }}>
           <Timeline events={c?.timeline ?? []} />
         </div>
       </section>
 
-      {/* Evidence Table */}
-      <section className="mb-8">
-        <h2 className="text-xs uppercase tracking-widest text-muted mb-4 font-medium">Evidence Table</h2>
+      {/* Evidence */}
+      <section className="mb-6 fade-in-up-3">
+        <SectionHeader label="Evidence Table" />
         <EvidenceTable evidence={c?.evidence ?? []} />
       </section>
 
-      {/* Tool Outputs Summary */}
-      <section>
-        <h2 className="text-xs uppercase tracking-widest text-muted mb-4 font-medium">Tool Execution Summary</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Tool grid */}
+      <section className="fade-in-up-4">
+        <SectionHeader label="Tool Execution" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {job.tool_outputs.map((t, i) => (
-            <div key={i} className={`p-4 rounded-xl border ${t.success ? 'border-border bg-surface' : 'border-red-500/30 bg-red-500/5'}`}>
-              <p className="font-mono text-xs text-purple-400 mb-1">{t.tool}</p>
-              <p className={`text-xs ${t.success ? 'text-accent' : 'text-red-400'}`}>
-                {t.success ? '✓ Success' : '✗ Failed'}
+            <div
+              key={i}
+              className={`p-4 rounded-xl border transition-all duration-300 card-hover ${
+                t.success
+                  ? 'border-[#1E293B] hover:border-green-500/30'
+                  : 'border-red-500/20 bg-red-500/5'
+              }`}
+              style={{ background: t.success ? 'rgba(15,23,42,0.6)' : undefined }}
+            >
+              <p className="font-mono text-xs text-purple-400 mb-2">{t.tool}</p>
+              <p className={`text-xs font-mono font-bold ${t.success ? 'text-green-400' : 'text-red-400'}`}>
+                {t.success ? '✓ SUCCESS' : '✗ FAILED'}
               </p>
-              {t.error && <p className="text-xs text-muted mt-1 truncate">{t.error}</p>}
+              {t.error && <p className="text-xs text-[#334155] mt-1 truncate font-mono">{t.error}</p>}
             </div>
           ))}
         </div>
