@@ -84,11 +84,17 @@ A terminal-style interface on the frontend shows the user exactly what the agent
 **Findings Correlation and Hypothesis Generation**
 After all tools have run, the language model receives the combined structured output and produces an incident timeline, an attack hypothesis in plain English, and a scored evidence table. Confidence scores are assigned using rule-based logic for reliability.
 
+**Suspicious Strings Analysis**
+After correlation, the AI identifies the most forensically significant strings from the tool outputs — IP addresses, domains, registry keys, API calls, file paths, and commands. Each is flagged with a severity level (Critical, High, Medium, Low) and a plain-English explanation of why it is dangerous. These appear in both the Results page and the PDF report.
+
 **Professional PDF Report**
-A downloadable PDF report is generated on demand. It includes the case metadata, executive summary, attack hypothesis, incident timeline, evidence table, and a tool output appendix.
+A downloadable PDF report is generated on demand with a professional dark-themed design. It includes a branded cover page with the ForensiX logo and case metadata, executive summary, attack hypothesis, incident timeline, evidence table with visual confidence bars, suspicious strings table with color-coded severity, and a tool output appendix.
+
+**Live AI Backend Toggle**
+Users can switch between Claude API and Ollama directly from the Upload page UI without restarting the stack. The current backend is shown as a badge. If Claude mode is selected but no valid API key is present, the system automatically falls back to Ollama.
 
 **Dual AI Backend Support**
-The system can run with either the Claude API (cloud-based, best quality) or Ollama (local, free, offline). Users configure their preferred mode through an environment variable. Both modes use the same pipeline and produce the same output structure.
+The system can run with either the Claude API (cloud-based, best quality) or Ollama (local, free, offline). Users configure their preferred mode through an environment variable or the live UI toggle. Both modes use the same pipeline and produce the same output structure.
 
 **Docker Compose Deployment**
 The entire system — backend, frontend, and all forensic tools — runs inside Docker containers. A single `docker compose up` command starts everything with no local tool installation required.
@@ -123,7 +129,7 @@ The agent is given the artefact type and a sample of extracted strings. It is as
 
 **Decision 2 — Findings Correlation**
 
-After all tools have run, the agent receives all normalized tool outputs in a single prompt. It is asked to return a structured JSON object containing the incident timeline, attack hypothesis, evidence list, and executive summary. The output schema is strictly defined to ensure the frontend can render it reliably regardless of which AI backend is in use.
+After all tools have run, the agent receives all normalized tool outputs in a single prompt. It is asked to return a structured JSON object containing the incident timeline, attack hypothesis, evidence list, executive summary, and a list of up to 10 suspicious strings — each with a severity rating and plain-English explanation. The output schema is strictly defined to ensure the frontend can render it reliably regardless of which AI backend is in use.
 
 This two-call architecture keeps the AI's role focused and predictable — one decision per stage — rather than using a complex multi-step reasoning loop that is harder to debug or demo reliably.
 

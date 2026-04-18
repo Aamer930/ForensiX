@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TerminalStream, { StreamEvent } from '../components/TerminalStream'
+import { usePageTitle } from '../lib/usePageTitle'
+import { useToast } from '../components/Toast'
 
 const TOOL_LABELS: Record<string, string> = {
   strings: 'strings',
@@ -24,6 +26,8 @@ export default function LiveAgent() {
   const [doneTools, setDoneTools] = useState<Set<string>>(new Set())
   const wsRef = useRef<WebSocket | null>(null)
   const retriesRef = useRef(0)
+  const { toast } = useToast()
+  usePageTitle('Live Agent')
 
   useEffect(() => {
     if (!jobId) return
@@ -52,9 +56,13 @@ export default function LiveAgent() {
       }
       if (ev.type === 'complete') {
         setStatus('complete')
+        toast('Analysis complete — loading results', 'success')
         setTimeout(() => navigate(`/results/${jobId}`), 1500)
       }
-      if (ev.type === 'error') setStatus('error')
+      if (ev.type === 'error') {
+        setStatus('error')
+        toast(ev.message, 'error')
+      }
     }
 
     ws.onclose = () => {

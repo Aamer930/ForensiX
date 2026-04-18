@@ -1,4 +1,5 @@
 import asyncio
+import os
 from models import JobStatus, WSEvent, FileType
 from job_store import get_job, update_job, emit
 from pipeline.selector import select_tools
@@ -68,6 +69,9 @@ async def execute_pipeline(job_id: str):
         job.status = JobStatus.complete
         update_job(job)
 
+        # Clean up uploaded file to save disk space
+        _cleanup_file(job.file_path)
+
         await emit(job_id, WSEvent(
             type="complete",
             message="Analysis complete.",
@@ -78,6 +82,7 @@ async def execute_pipeline(job_id: str):
         job.status = JobStatus.failed
         job.error = str(e)
         update_job(job)
+        _cleanup_file(job.file_path)
         await emit(job_id, WSEvent(type="error", message=f"Pipeline failed: {str(e)}"))
 
 
@@ -130,3 +135,13 @@ def _summarize_output(output) -> str:
     if output.tool == "binwalk":
         return f"binwalk: {len(d.get('carved', []))} embedded files identified"
     return f"{output.tool} completed"
+
+
+def _cleanup_file(file_path: str) -> None:
+    try:
+        if file_path and os.path.exists(file_path):
+            # Don't delete the bundled sample
+            if "cridex.vmem" not in file_path or "/tmp/" in file_path:
+                os.remove(file_path)
+    except Exception:
+        pass

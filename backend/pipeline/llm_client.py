@@ -9,11 +9,22 @@ import os
 import urllib.request
 import urllib.error
 
-AI_MODE = os.environ.get("AI_MODE", "claude").lower()
+_ai_mode = os.environ.get("AI_MODE", "claude").lower()
+
+
+def get_mode() -> str:
+    return _ai_mode
+
+
+def set_mode(mode: str) -> None:
+    global _ai_mode
+    if mode not in ("claude", "ollama"):
+        raise ValueError(f"Unknown mode: {mode}")
+    _ai_mode = mode
 
 
 def call(system: str, user: str, max_tokens: int = 2048) -> str:
-    if AI_MODE == "ollama":
+    if _ai_mode == "ollama":
         return _call_ollama(system, user, max_tokens)
     return _call_claude(system, user, max_tokens)
 
@@ -21,8 +32,12 @@ def call(system: str, user: str, max_tokens: int = 2048) -> str:
 # ── Claude ────────────────────────────────────────────────────────────────────
 
 def _call_claude(system: str, user: str, max_tokens: int) -> str:
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not key or not key.startswith("sk-"):
+        # No valid key — silently fall back to Ollama
+        return _call_ollama(system, user, max_tokens)
     import anthropic
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = anthropic.Anthropic(api_key=key)
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=max_tokens,
@@ -68,4 +83,4 @@ def _call_ollama(system: str, user: str, max_tokens: int) -> str:
 
 
 def active_mode() -> str:
-    return f"ollama/{_OLLAMA_MODEL}" if AI_MODE == "ollama" else "claude/claude-sonnet-4-6"
+    return f"ollama/{_OLLAMA_MODEL}" if _ai_mode == "ollama" else "claude/claude-sonnet-4-6"

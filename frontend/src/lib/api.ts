@@ -21,6 +21,7 @@ export interface Correlation {
   hypothesis: string
   evidence: { finding: string; source: string; confidence: number }[]
   summary: string
+  suspicious_strings: { value: string; reason: string; severity: 'critical' | 'high' | 'medium' | 'low' }[]
 }
 
 export interface ToolOutput {
@@ -52,4 +53,24 @@ export async function getJob(jobId: string): Promise<Job> {
 
 export function getReportUrl(jobId: string): string {
   return `${BASE}/jobs/${jobId}/report`
+}
+
+export function getReportPreviewUrl(jobId: string): string {
+  return `${BASE}/jobs/${jobId}/report/preview`
+}
+
+export async function getAiMode(): Promise<{ mode: string }> {
+  const res = await fetch(`${BASE}/ai-mode`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function setAiMode(mode: 'claude' | 'ollama'): Promise<{ mode: string }> {
+  const res = await fetch(`${BASE}/ai-mode`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
 }

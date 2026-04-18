@@ -49,8 +49,10 @@ The system is built for cybersecurity students, researchers, and analysts who wa
 | **Incident Timeline** | Chronological sequence of events extracted from evidence |
 | **Attack Hypothesis** | Plain-English explanation of what likely happened |
 | **Evidence Table** | Findings with source tool and rule-based confidence scores |
-| **PDF Report Export** | Downloadable professional forensic report |
-| **Dual AI Backend** | Switch between Claude API and local Ollama with one env variable |
+| **Suspicious Strings Analysis** | AI flags the most dangerous strings with severity and explanation |
+| **PDF Report Export** | Professionally designed report with dark cover, logo, confidence bars |
+| **Live AI Mode Toggle** | Switch between Claude API and Ollama from the UI — no restart needed |
+| **Dual AI Backend** | Claude API auto-fallback to Ollama when no API key is set |
 | **Demo Sample Included** | Bundled `cridex.vmem` memory image with real malware artefacts |
 | **Docker Compose Deploy** | One command to run the full stack — no local tool installation |
 
@@ -72,15 +74,13 @@ cd forensix
 
 ### 2. Add your API key
 
-```bash
-cp .env.example .env
-```
+Edit the `.env` file in the project root and replace `sk-ant-your-key-here` with your real key.
 
 Open `.env` and fill in your details:
 
 ```env
 # Choose your AI backend: "claude" or "ollama"
-AI_MODE=claude
+AI_MODE=ollama   # default — works out of the box with no API key
 
 # Required if AI_MODE=claude
 ANTHROPIC_API_KEY=sk-ant-your-key-here
@@ -90,14 +90,14 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 OLLAMA_MODEL=llama3.2
 ```
 
-### 3. Download the demo sample *(optional but recommended)*
+> **No API key?** Leave `AI_MODE=ollama` (the default). The Claude mode auto-falls back to Ollama if no valid key is detected.
+> You can also switch AI backend live from the Upload page UI — no restart required.
 
-```bash
-curl -L -o sample/cridex.vmem \
-  https://downloads.volatilityfoundation.org/releases/2.4/cridex.vmem
-```
+### 3. Demo sample
 
-> Or use your own forensic artefact — memory dumps, PE executables, and log files are all supported.
+A synthetic demo sample (`sample/cridex.vmem`) is included in the repository. Click **Load Demo Sample** in the UI — no download needed.
+
+> Or upload your own forensic artefact — memory dumps, PE executables, and log files are all supported.
 
 ### 4. Start the stack
 
@@ -170,7 +170,9 @@ docker compose up --build
 
 ## 🤖 AI Modes
 
-ForensiX supports two interchangeable AI backends. Switch between them by setting `AI_MODE` in your `.env` file.
+ForensiX supports two interchangeable AI backends. Switch between them by setting `AI_MODE` in your `.env` file, or toggle live from the **Upload page UI** — no restart required.
+
+If `AI_MODE=claude` but no valid API key is set, the system automatically falls back to Ollama.
 
 ### Claude API *(Recommended for best quality)*
 
@@ -342,7 +344,7 @@ forensix/
 │   └── ForensiX_Documentation.md
 │
 ├── docker-compose.yml
-├── .env.example
+├── .env
 └── CLAUDE.md
 ```
 

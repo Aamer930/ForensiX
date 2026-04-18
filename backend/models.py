@@ -31,6 +31,12 @@ class Finding(BaseModel):
     confidence: int  # 0-100
 
 
+class SuspiciousString(BaseModel):
+    value: str
+    reason: str
+    severity: str  # critical | high | medium | low
+
+
 class TimelineEvent(BaseModel):
     time: str
     event: str
@@ -41,6 +47,7 @@ class CorrelationResult(BaseModel):
     hypothesis: str
     evidence: list[Finding]
     summary: str
+    suspicious_strings: list[SuspiciousString] = []
 
 
 class Job(BaseModel):

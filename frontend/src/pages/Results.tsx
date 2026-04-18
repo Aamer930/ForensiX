@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { getJob, type Job } from '../lib/api'
 import Timeline from '../components/Timeline'
 import EvidenceTable from '../components/EvidenceTable'
+import ResultsSkeleton from '../components/ResultsSkeleton'
+import { usePageTitle } from '../lib/usePageTitle'
+import { useToast } from '../components/Toast'
 
 function SectionHeader({ label }: { label: string }) {
   return (
@@ -16,12 +19,16 @@ function SectionHeader({ label }: { label: string }) {
 export default function Results() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [job, setJob] = useState<Job | null>(null)
   const [error, setError] = useState<string | null>(null)
+  usePageTitle('Results')
 
   useEffect(() => {
     if (!jobId) return
-    getJob(jobId).then(setJob).catch(e => setError(e.message))
+    getJob(jobId)
+      .then(j => { setJob(j); toast('Analysis results loaded', 'success') })
+      .catch(e => { setError(e.message); toast(e.message, 'error') })
   }, [jobId])
 
   if (error) return (
@@ -30,14 +37,7 @@ export default function Results() {
     </div>
   )
 
-  if (!job) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
-        <p className="text-xs font-mono text-[#334155]">Loading results...</p>
-      </div>
-    </div>
-  )
+  if (!job) return <ResultsSkeleton />
 
   const c = job.correlation
 
@@ -110,6 +110,37 @@ export default function Results() {
         <SectionHeader label="Evidence Table" />
         <EvidenceTable evidence={c?.evidence ?? []} />
       </section>
+
+      {/* Suspicious Strings */}
+      {(c?.suspicious_strings?.length ?? 0) > 0 && (
+        <section className="mb-6 fade-in-up-3">
+          <SectionHeader label="Suspicious Strings" />
+          <div className="space-y-2">
+            {c!.suspicious_strings.map((s, i) => {
+              const sev = {
+                critical: { bg: 'bg-red-500/10', border: 'border-red-500/40', badge: 'bg-red-500/20 text-red-400 border-red-500/40', dot: 'bg-red-500' },
+                high:     { bg: 'bg-orange-500/10', border: 'border-orange-500/40', badge: 'bg-orange-500/20 text-orange-400 border-orange-500/40', dot: 'bg-orange-500' },
+                medium:   { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', dot: 'bg-yellow-400' },
+                low:      { bg: 'bg-blue-500/10', border: 'border-blue-500/30', badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30', dot: 'bg-blue-400' },
+              }[s.severity] ?? { bg: 'bg-[#0F172A]', border: 'border-[#1E293B]', badge: 'bg-[#1E293B] text-[#64748B] border-[#1E293B]', dot: 'bg-[#334155]' }
+              return (
+                <div key={i} className={`p-4 rounded-xl border ${sev.bg} ${sev.border} flex gap-4 items-start`}>
+                  <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${sev.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <code className="text-sm font-mono text-white break-all">{s.value}</code>
+                      <span className={`px-2 py-0.5 rounded border text-xs font-mono uppercase flex-shrink-0 ${sev.badge}`}>
+                        {s.severity}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#64748B] leading-relaxed">{s.reason}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Tool grid */}
       <section className="fade-in-up-4">

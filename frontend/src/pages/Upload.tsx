@@ -1,20 +1,73 @@
-import { useState, useCallback, DragEvent, useEffect } from 'react'
+import { useState, useCallback, DragEvent, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { uploadFile, uploadSample } from '../lib/api'
+import { uploadFile, uploadSample, getAiMode, setAiMode } from '../lib/api'
+import { usePageTitle } from '../lib/usePageTitle'
+import { useToast } from '../components/Toast'
 
 const FEATURES = [
-  { icon: '⬡', label: 'Memory Dumps' },
-  { icon: '⬡', label: 'PE Executables' },
-  { icon: '⬡', label: 'Log Files' },
-  { icon: '⬡', label: 'Disk Images' },
+  { label: 'Memory Dumps' },
+  { label: 'PE Executables' },
+  { label: 'Log Files' },
+  { label: 'Disk Images' },
 ]
+
+const STATS = [
+  { value: 4,   suffix: '',  label: 'Forensic Tools' },
+  { value: 2,   suffix: '',  label: 'AI Calls / Run' },
+  { value: 8,   suffix: '+', label: 'YARA Rule Families' },
+  { value: 100, suffix: '%', label: 'Autonomous' },
+]
+
+function AnimatedCounter({ target, suffix }: { target: number; suffix: string }) {
+  const [count, setCount] = useState(0)
+  const ref = useRef(false)
+
+  useEffect(() => {
+    if (ref.current) return
+    ref.current = true
+    const duration = 1200
+    const steps = 40
+    const increment = target / steps
+    let current = 0
+    const t = setInterval(() => {
+      current = Math.min(current + increment, target)
+      setCount(Math.round(current))
+      if (current >= target) clearInterval(t)
+    }, duration / steps)
+    return () => clearInterval(t)
+  }, [target])
+
+  return <span>{count}{suffix}</span>
+}
 
 export default function Upload() {
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [dragging, setDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [typed, setTyped] = useState('')
+  const [aiMode, setAiModeState] = useState<'claude' | 'ollama'>('claude')
+  const [modeLoading, setModeLoading] = useState(false)
+  usePageTitle('Upload')
+
+  useEffect(() => {
+    getAiMode().then(r => setAiModeState(r.mode as 'claude' | 'ollama')).catch(() => {})
+  }, [])
+
+  const toggleMode = async () => {
+    const next = aiMode === 'claude' ? 'ollama' : 'claude'
+    setModeLoading(true)
+    try {
+      await setAiMode(next)
+      setAiModeState(next)
+      toast(`Switched to ${next === 'claude' ? 'Claude API' : 'Ollama (local)'}`, 'success')
+    } catch {
+      toast('Failed to switch AI mode', 'error')
+    } finally {
+      setModeLoading(false)
+    }
+  }
 
   const tagline = 'Autonomous Forensic Agent'
   useEffect(() => {
@@ -31,13 +84,17 @@ export default function Upload() {
     setLoading(true)
     setError(null)
     try {
+      toast(`Uploading ${file.name}...`, 'info')
       const res = await uploadFile(file)
+      toast('Analysis started', 'success')
       navigate(`/live/${res.job_id}`)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
+      const msg = e instanceof Error ? e.message : 'Upload failed'
+      setError(msg)
+      toast(msg, 'error')
       setLoading(false)
     }
-  }, [navigate])
+  }, [navigate, toast])
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
@@ -50,10 +107,14 @@ export default function Upload() {
     setLoading(true)
     setError(null)
     try {
+      toast('Loading demo sample...', 'info')
       const res = await uploadSample()
+      toast('Sample loaded — starting analysis', 'success')
       navigate(`/live/${res.job_id}`)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load sample')
+      const msg = e instanceof Error ? e.message : 'Failed to load sample'
+      setError(msg)
+      toast(msg, 'error')
       setLoading(false)
     }
   }
@@ -71,10 +132,32 @@ export default function Upload() {
           <span className="w-2 h-2 rounded-full bg-green-500 pulse-glow" />
           <span className="text-xs font-mono text-[#64748B]">FORENSIX v1.0</span>
         </div>
-        <div className="flex gap-4 text-xs font-mono text-[#64748B]">
+        <div className="flex items-center gap-3 text-xs font-mono text-[#64748B]">
           <span>SYS:READY</span>
           <span className="neon-text">●</span>
-          <span>AI:ONLINE</span>
+          <button
+            onClick={toggleMode}
+            disabled={modeLoading}
+            title="Switch AI backend"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-[#1E293B] hover:border-green-500/50 hover:bg-green-500/5 transition-all duration-200 cursor-pointer disabled:opacity-50"
+          >
+            {aiMode === 'claude' ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                <span className="text-green-400">CLAUDE API</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                <span className="text-purple-400">OLLAMA LOCAL</span>
+              </>
+            )}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              className={`w-3 h-3 ml-0.5 text-[#475569] ${modeLoading ? 'animate-spin' : ''}`}>
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -176,8 +259,20 @@ export default function Upload() {
         </div>
       )}
 
+      {/* Animated stats */}
+      <div className="grid grid-cols-4 gap-4 mt-8 w-full max-w-lg fade-in-up-4">
+        {STATS.map((s) => (
+          <div key={s.label} className="text-center">
+            <p className="text-xl font-bold font-mono neon-text">
+              <AnimatedCounter target={s.value} suffix={s.suffix} />
+            </p>
+            <p className="text-[#334155] text-xs font-mono mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Footer */}
-      <p className="absolute bottom-4 text-[#1E293B] text-xs font-mono fade-in-up-4">
+      <p className="absolute bottom-4 text-[#1E293B] text-xs font-mono">
         UNIVERSITY PROJECT — FORENSIX AUTONOMOUS FORENSIC AGENT
       </p>
     </div>
