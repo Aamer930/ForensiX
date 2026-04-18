@@ -66,7 +66,7 @@ The system is built for cybersecurity students, researchers, and analysts who wa
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/forensix.git
+git clone https://github.com/Aamer930/forensix.git
 cd forensix
 ```
 
@@ -94,7 +94,7 @@ OLLAMA_MODEL=llama3.2
 
 ```bash
 curl -L -o sample/cridex.vmem \
-  https://github.com/volatilityfoundation/volatility/wiki/Memory-Samples
+  https://downloads.volatilityfoundation.org/releases/2.4/cridex.vmem
 ```
 
 > Or use your own forensic artefact — memory dumps, PE executables, and log files are all supported.
