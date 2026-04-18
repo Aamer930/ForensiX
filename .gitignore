@@ -1,0 +1,32 @@
+# Environment
+.env
+
+# Demo sample (too large for GitHub)
+sample/*.vmem
+sample/*.raw
+sample/*.dmp
+sample/*.lime
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Uploads
+/tmp/forensix_uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
