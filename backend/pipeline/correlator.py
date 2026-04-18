@@ -1,9 +1,6 @@
 import json
-import os
-import anthropic
 from models import ToolOutput, CorrelationResult, Finding, TimelineEvent
-
-_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+from pipeline import llm_client
 
 _SYSTEM = """You are a senior forensic analyst. Given structured outputs from forensic tools,
 produce a JSON incident report. Be precise and evidence-based.
@@ -17,11 +14,9 @@ Return ONLY valid JSON matching this schema exactly:
 
 
 def _cap_output(output: ToolOutput) -> dict:
-    """Return a token-safe version of a tool output."""
     if not output.success:
         return {"tool": output.tool, "error": output.error}
     data = output.data
-    # Apply per-tool caps
     if output.tool == "strings":
         return {"tool": "strings", "strings": data.get("strings", [])[:200]}
     if output.tool == "yara":
@@ -39,25 +34,22 @@ def _cap_output(output: ToolOutput) -> dict:
     return {"tool": output.tool, "data": str(data)[:500]}
 
 
+def _parse_response(text: str) -> dict:
+    # Strip markdown code fences if present
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    return json.loads(text.strip())
+
+
 def correlate(tool_outputs: list[ToolOutput]) -> CorrelationResult:
     capped = [_cap_output(o) for o in tool_outputs]
     user_msg = json.dumps(capped, indent=2)
 
     try:
-        response = _client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": user_msg}],
-        )
-        text = response.content[0].text.strip()
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        data = json.loads(text)
-
+        text = llm_client.call(_SYSTEM, user_msg, max_tokens=2048)
+        data = _parse_response(text)
         return CorrelationResult(
             timeline=[TimelineEvent(**e) for e in data.get("timeline", [])],
             hypothesis=data.get("hypothesis", "Unable to determine attack hypothesis."),

@@ -4,6 +4,7 @@ from job_store import get_job, update_job, emit
 from pipeline.selector import select_tools
 from pipeline.correlator import correlate
 from pipeline.confidence import score_findings
+from pipeline.llm_client import active_mode
 
 
 async def execute_pipeline(job_id: str):
@@ -23,7 +24,7 @@ async def execute_pipeline(job_id: str):
             update_job(job)
             return
 
-        await emit(job_id, WSEvent(type="llm_thinking", message=f"File identified as {job.file_type.value}. Asking AI which tools to run..."))
+        await emit(job_id, WSEvent(type="llm_thinking", message=f"File identified as {job.file_type.value}. Using {active_mode()} to select tools..."))
 
         # Step 2: Quick strings sample for tool selection
         strings_sample = await _run_in_thread(_quick_strings, job.file_path)
