@@ -249,10 +249,10 @@ To add your own rules, drop `.yar` files into `backend/yara_rules/`. They are au
 ## 📸 Screenshots
 
 ### Upload Page
-> Drag-and-drop artefact upload with a "Load Demo Sample" button for instant demo use.
+![alt text](image.png)
 
 ### Live Agent Stream
-> Terminal-style real-time feed showing tool selection, execution steps, and AI reasoning.
+![alt text](image-1.png)
 
 ```
 forensix@agent:~$ ./run_analysis.sh
@@ -273,10 +273,12 @@ forensix@agent:~$ ./run_analysis.sh
 ```
 
 ### Results Page
-> Incident timeline, attack hypothesis, evidence table with confidence scores.
+![alt text](image-2.png)
+
+![alt text](image-3.png)
 
 ### PDF Report
-> Downloadable professional forensic report with case metadata, timeline, and evidence appendix.
+![alt text](image-4.png)
 
 ---
 
