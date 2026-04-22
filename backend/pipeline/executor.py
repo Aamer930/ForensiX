@@ -1,12 +1,14 @@
 import asyncio
 import os
-from models import JobStatus, WSEvent, FileType
+from models import JobStatus, WSEvent, FileType, AgentReasoningStep
 from job_store import get_job, update_job, emit
 from pipeline.selector import get_next_tool
 from pipeline.correlator import correlate
 from pipeline.confidence import score_findings
 from pipeline.llm_client import active_mode
 import db
+
+MAX_AGENT_STEPS = 9   # entropy (mandatory) + up to 9 agent decisions = max 10 LLM calls
 
 
 async def execute_pipeline(job_id: str):
@@ -18,7 +20,6 @@ async def execute_pipeline(job_id: str):
     update_job(job)
 
     try:
-        # Step 1: File type check
         if job.file_type == FileType.unknown:
             await emit(job_id, WSEvent(type="error", message="Unsupported file type. Cannot analyze."))
             job.status = JobStatus.failed
@@ -26,73 +27,73 @@ async def execute_pipeline(job_id: str):
             update_job(job)
             return
 
-        await emit(job_id, WSEvent(type="llm_thinking", message=f"File identified as {job.file_type.value}. Starting autonomous agent loop with {active_mode()}..."))
+        await emit(job_id, WSEvent(
+            type="llm_thinking",
+            message=f"File identified as {job.file_type.value}. Starting iterative agent loop with {active_mode()}..."
+        ))
 
-        # Step 2: Mandatory tools first (strings + yara always run)
         all_outputs = []
         tools_run = set()
-        
-        mandatory_tools = ["entropy", "strings", "yara"]
-        for tool in mandatory_tools:
-            await emit(job_id, WSEvent(type="llm_thinking", message=f"Agent reasoning: {tool} is a mandatory forensic step — must always run to extract baseline indicators."))
-            await emit(job_id, WSEvent(type="step_start", tool=tool, message=f"Running {tool}..."))
-            outputs = await _run_in_thread(_execute_tool, tool, job.file_path)
-            if not isinstance(outputs, list):
-                outputs = [outputs]
-            for output in outputs:
-                if output.success:
-                    summary = _summarize_output(output)
-                    await emit(job_id, WSEvent(type="step_done", tool=output.tool, message=summary))
-                else:
-                    await emit(job_id, WSEvent(type="step_error", tool=output.tool, message=f"{output.tool} failed: {output.error}"))
-                all_outputs.append(output)
-            tools_run.add(tool)
 
-        # Step 2b: Agent decides remaining tools (volatility3, binwalk)
-        max_agent_steps = 3
-        for _ in range(max_agent_steps):
+        # Entropy is always mandatory first — no LLM call consumed
+        await _emit_reason(job_id, job, step=0, chosen_tool="entropy",
+                           reasoning="Entropy analysis is always the first step — reveals packing, encryption, and compression before any other tool runs.",
+                           findings="No prior findings.")
+        await emit(job_id, WSEvent(type="step_start", tool="entropy", message="Running entropy analysis..."))
+        outputs = await _run_in_thread(_execute_tool, "entropy", job.file_path)
+        outputs = outputs if isinstance(outputs, list) else [outputs]
+        for output in outputs:
+            if output.success:
+                await emit(job_id, WSEvent(type="step_done", tool=output.tool, message=_summarize_output(output)))
+            else:
+                await emit(job_id, WSEvent(type="step_error", tool=output.tool, message=f"{output.tool} failed: {output.error}"))
+            all_outputs.append(output)
+        tools_run.add("entropy")
+
+        # Iterative agent loop — agent decides every subsequent tool
+        for step in range(1, MAX_AGENT_STEPS + 1):
+            findings_summary = _build_findings_summary(all_outputs)
             agent_decision = await _run_in_thread(get_next_tool, job.file_type, all_outputs)
-            next_tool = agent_decision.get("next_tool")
-            reasoning = agent_decision.get("reasoning", "Deciding next step...")
+            next_tool = agent_decision.get("next_tool", "DONE")
+            reasoning = agent_decision.get("reasoning", "No reasoning provided.")
+
+            await _emit_reason(job_id, job, step=step, chosen_tool=next_tool,
+                               reasoning=reasoning, findings=findings_summary)
 
             if next_tool == "DONE":
-                await emit(job_id, WSEvent(type="llm_thinking", message=f"Agent conclusion: {reasoning}"))
+                await emit(job_id, WSEvent(type="llm_thinking", message=f"Agent concluded: {reasoning}"))
                 break
 
-            if next_tool not in ["strings", "yara", "volatility3", "binwalk"]:
+            if next_tool not in {"strings", "yara", "volatility3", "binwalk"}:
                 break
-                
-            if next_tool in tools_run:
+
+            base_tool = "volatility3" if next_tool.startswith("vol_") else next_tool
+            if base_tool in tools_run:
+                await emit(job_id, WSEvent(type="llm_thinking", message=f"Agent wanted {next_tool} but already ran — concluding."))
                 break
-            
-            await emit(job_id, WSEvent(type="llm_thinking", message=f"Agent reasoning: {reasoning}"))
+
             await emit(job_id, WSEvent(type="step_start", tool=next_tool, message=f"Running {next_tool}..."))
-            
             outputs = await _run_in_thread(_execute_tool, next_tool, job.file_path)
-            
-            if not isinstance(outputs, list):
-                outputs = [outputs]
-                
+            outputs = outputs if isinstance(outputs, list) else [outputs]
             for output in outputs:
                 if output.success:
-                    summary = _summarize_output(output)
-                    await emit(job_id, WSEvent(type="step_done", tool=output.tool, message=summary))
+                    await emit(job_id, WSEvent(type="step_done", tool=output.tool, message=_summarize_output(output)))
                 else:
                     await emit(job_id, WSEvent(type="step_error", tool=output.tool, message=f"{output.tool} failed: {output.error}"))
                 all_outputs.append(output)
-            
-            tools_run.add(next_tool)
+            tools_run.add(base_tool)
 
         job.tool_outputs = all_outputs
         update_job(job)
 
-        # Step 3: Correlation via Claude
-        await emit(job_id, WSEvent(type="llm_thinking", message="Correlating findings and generating incident report..."))
+        # Correlation
+        await emit(job_id, WSEvent(type="llm_thinking", message="Correlating all findings — generating multi-hypothesis incident report..."))
         correlation = await _run_in_thread(correlate, all_outputs)
 
-        # Step 4: Confidence scoring & Threat Intelligence (VirusTotal)
+        # Confidence scoring
         correlation.evidence = score_findings(correlation.evidence, all_outputs)
-        
+
+        # VirusTotal enrichment
         await emit(job_id, WSEvent(type="llm_thinking", message="Checking indicators against VirusTotal Threat Intelligence API..."))
         from pipeline.vt_client import check_indicator
         for s in correlation.suspicious_strings:
@@ -101,16 +102,23 @@ async def execute_pipeline(job_id: str):
                 s.reason += f" [VirusTotal: {vt_res['malicious']}/{vt_res['total']} engines detected this as malicious. Vendors: {', '.join(vt_res['vendors'])}]"
                 s.severity = "critical"
 
-        job.correlation = correlation
-        
-        # Clean up uploaded file
-        _cleanup_file(job.file_path)
-        await emit(job.job_id, WSEvent(type="terminal", message="[ AI ] Finished producing forensic report.", tool="correlator"))
+        # Adversary profiling
+        from pipeline.adversary import profile_adversary
+        adversary = profile_adversary(correlation)
+        if adversary:
+            correlation.adversary = adversary
+            await emit(job_id, WSEvent(
+                type="llm_thinking",
+                message=f"Adversary profiling: tactics match {adversary.name} ({adversary.confidence}% confidence)"
+            ))
 
+        job.correlation = correlation
+        _cleanup_file(job.file_path)
+
+        await emit(job.job_id, WSEvent(type="terminal", message="[ AI ] Finished producing forensic report.", tool="correlator"))
         job.status = JobStatus.complete
         update_job(job)
         db.save_case(job)
-
         await emit(job.job_id, WSEvent(type="complete", message="Analysis complete."))
 
     except Exception as e:
@@ -119,6 +127,33 @@ async def execute_pipeline(job_id: str):
         update_job(job)
         db.save_case(job)
         await emit(job.job_id, WSEvent(type="error", message=f"Analysis failed: {e}"))
+
+
+async def _emit_reason(job_id: str, job, step: int, chosen_tool: str, reasoning: str, findings: str):
+    step_obj = AgentReasoningStep(
+        step=step,
+        chosen_tool=chosen_tool,
+        reasoning=reasoning,
+        findings_so_far=findings,
+    )
+    job.agent_reasoning.append(step_obj)
+    update_job(job)
+    await emit(job_id, WSEvent(
+        type="llm_reason",
+        tool=chosen_tool,
+        message=f"Step {step}: chose [{chosen_tool}] — {reasoning}",
+        data={"step": step, "chosen_tool": chosen_tool, "reasoning": reasoning, "findings_so_far": findings},
+    ))
+
+
+def _build_findings_summary(outputs) -> str:
+    parts = []
+    for o in outputs:
+        if o.success:
+            parts.append(f"{o.tool}: {_summarize_output(o)}")
+        else:
+            parts.append(f"{o.tool}: failed")
+    return " | ".join(parts) if parts else "No findings yet."
 
 
 async def _run_in_thread(fn, *args):

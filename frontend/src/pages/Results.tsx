@@ -8,8 +8,19 @@ import ThreatRiskScore from '../components/ThreatRiskScore'
 import MitreHeatmap from '../components/MitreHeatmap'
 import EntropyChart from '../components/EntropyChart'
 import ResultsSkeleton from '../components/ResultsSkeleton'
+import HypothesisPanel from '../components/HypothesisPanel'
+import AdversaryCard from '../components/AdversaryCard'
+import EvidenceDrawer from '../components/EvidenceDrawer'
 import { usePageTitle } from '../lib/usePageTitle'
 import { useToast } from '../components/Toast'
+
+type TimelineEvent = {
+  time: string
+  event: string
+  mitre_tactic?: string
+  mitre_technique?: string
+  tool_source?: string
+}
 
 function SectionHeader({ label }: { label: string }) {
   return (
@@ -26,6 +37,8 @@ export default function Results() {
   const { toast } = useToast()
   const [job, setJob] = useState<Job | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [drawerEvent, setDrawerEvent] = useState<TimelineEvent | null>(null)
+  const [reasoningOpen, setReasoningOpen] = useState(false)
   usePageTitle('Results')
 
   useEffect(() => {
@@ -79,22 +92,16 @@ export default function Results() {
         </div>
       </div>
 
-      {/* Risk Score + Hypothesis side-by-side */}
+      {/* Risk Score + Attack Hypotheses */}
       <section className="mb-6 fade-in-up-1">
         <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
-          {/* Risk Score Gauge */}
           <ThreatRiskScore score={c?.risk_score ?? 0} />
-          
-          {/* Hypothesis */}
           <div>
-            <SectionHeader label="Attack Hypothesis" />
-            <div className="p-5 rounded-xl border border-[#1E293B] relative overflow-hidden h-full"
-              style={{ background: 'rgba(15,23,42,0.8)' }}>
-              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-500 to-transparent rounded-l-xl" />
-              <p className="text-[#CBD5E1] leading-relaxed pl-3">
-                {c?.hypothesis ?? 'No hypothesis generated.'}
-              </p>
-            </div>
+            <SectionHeader label="Attack Hypotheses" />
+            <HypothesisPanel
+              primary={c?.hypothesis ?? 'No hypothesis generated.'}
+              hypotheses={c?.hypotheses ?? []}
+            />
           </div>
         </div>
       </section>
@@ -114,6 +121,14 @@ export default function Results() {
         />
       </section>
 
+      {/* Adversary Attribution */}
+      {c?.adversary && (
+        <section className="mb-6 fade-in-up-1">
+          <SectionHeader label="Adversary Attribution" />
+          <AdversaryCard adversary={c.adversary} />
+        </section>
+      )}
+
       {/* Summary */}
       {c?.summary && (
         <section className="mb-6 fade-in-up-1">
@@ -124,20 +139,23 @@ export default function Results() {
         </section>
       )}
 
-      {/* Timeline */}
+      {/* Timeline — click to view evidence */}
       <section className="mb-6 fade-in-up-2">
         <SectionHeader label="Incident Timeline" />
         <div className="p-5 rounded-xl border border-[#1E293B]" style={{ background: 'rgba(15,23,42,0.6)' }}>
-          <Timeline events={c?.timeline ?? []} />
+          <Timeline
+            events={c?.timeline ?? []}
+            onEventClick={ev => setDrawerEvent(ev)}
+          />
         </div>
       </section>
 
       {/* Threat Graph */}
       <section className="mb-6 fade-in-up-3">
         <SectionHeader label="Interactive Threat Graph" />
-        <ThreatGraph 
-          suspiciousStrings={c?.suspicious_strings ?? []} 
-          evidence={c?.evidence ?? []} 
+        <ThreatGraph
+          suspiciousStrings={c?.suspicious_strings ?? []}
+          evidence={c?.evidence ?? []}
         />
       </section>
 
@@ -179,7 +197,7 @@ export default function Results() {
       )}
 
       {/* Tool grid */}
-      <section className="fade-in-up-4">
+      <section className="mb-6 fade-in-up-4">
         <SectionHeader label="Tool Execution" />
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {job.tool_outputs.map((t, i) => (
@@ -201,6 +219,49 @@ export default function Results() {
           ))}
         </div>
       </section>
+
+      {/* Agent Reasoning Log */}
+      {(job.agent_reasoning?.length ?? 0) > 0 && (
+        <section className="mb-6 fade-in-up-4">
+          <SectionHeader label="Agent Reasoning Log" />
+          <div className="rounded-xl border border-[#1E293B] overflow-hidden">
+            <button
+              onClick={() => setReasoningOpen(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-[#0F172A] hover:bg-[#1E293B] transition-colors cursor-pointer"
+            >
+              <span className="text-xs font-mono text-[#475569]">
+                {job.agent_reasoning.length} decision{job.agent_reasoning.length !== 1 ? 's' : ''} — click to {reasoningOpen ? 'collapse' : 'expand'}
+              </span>
+              <span className="text-[#334155] text-xs">{reasoningOpen ? '▲' : '▼'}</span>
+            </button>
+            {reasoningOpen && (
+              <div className="divide-y divide-[#1E293B]">
+                {job.agent_reasoning.map((step, i) => (
+                  <div key={i} className="px-4 py-3 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-[#334155]">STEP {step.step}</span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-purple-500/30 text-purple-300 bg-purple-500/10 font-mono">
+                        {step.chosen_tool}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#64748B] leading-relaxed">{step.reasoning}</p>
+                    {step.findings_so_far && step.findings_so_far !== 'No findings yet.' && (
+                      <p className="text-[10px] text-[#334155] font-mono">↳ {step.findings_so_far.slice(0, 150)}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Evidence drawer */}
+      <EvidenceDrawer
+        event={drawerEvent}
+        toolOutputs={job.tool_outputs}
+        onClose={() => setDrawerEvent(null)}
+      />
     </div>
   )
 }

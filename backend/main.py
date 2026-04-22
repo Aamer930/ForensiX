@@ -50,6 +50,7 @@ async def get_job_status(job_id: str):
         "correlation": job.correlation.model_dump() if job.correlation else None,
         "tool_outputs": [t.model_dump() for t in job.tool_outputs],
         "error": job.error,
+        "agent_reasoning": [r.model_dump() for r in job.agent_reasoning],
     }
 
 

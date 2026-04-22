@@ -34,10 +34,12 @@ npm run dev   # http://localhost:5173 — proxies /api and /ws to :8000
 
 ```
 Upload → FileTypeRouter (python-magic)
-       → ToolSelector (LLM — 1 call)
-       → ToolExecutor (entropy → strings → YARA → Volatility3 → binwalk, sequential)
-       → Correlator (LLM — 1 call)  ← also extracts suspicious_strings + mitre_tactics
+       → ToolExecutor: entropy (always first, no LLM)
+       → Agent Loop ×N: ToolSelector (LLM — 1 call per step, max 9)
+                      → execute tool → _emit_reason → AgentReasoningStep + llm_reason WS event
+       → Correlator (LLM — 1 final call)  ← multi-hypothesis + tool_source on timeline
        → ConfidenceScorer (rule-based)
+       → AdversaryProfiler (TTP lookup table — no LLM)
        → VTClient (VirusTotal enrichment per IOC)
        → JobStore (in-memory + SQLite) + WebSocket stream
 ```
@@ -45,8 +47,10 @@ Upload → FileTypeRouter (python-magic)
 **Backend** (`backend/`) — FastAPI, Python 3.11
 - `main.py` — app entry, CORS, PDF/preview endpoints, AI mode switch endpoints
 - `pipeline/llm_client.py` — unified LLM interface; `get_mode()` / `set_mode()` for live switching; auto-falls back to Ollama if Claude key is missing
-- `pipeline/executor.py` — orchestrates the full pipeline as an async background task
-- `pipeline/selector.py` / `correlator.py` — the two LLM calls
+- `pipeline/executor.py` — iterative agent loop; entropy mandatory first; `_emit_reason()` logs every AI decision
+- `pipeline/selector.py` — one LLM call per agent step; returns `{next_tool, reasoning}`
+- `pipeline/correlator.py` — final LLM call; produces 3 hypotheses + `tool_source` on timeline events
+- `pipeline/adversary.py` — TTP-based adversary attribution; 6 hardcoded threat actor profiles
 - `pipeline/confidence.py` — rule-based confidence scorer
 - `pipeline/vt_client.py` — VirusTotal API enrichment for suspicious IOCs
 - `tools/` — one file per forensic tool, each returns a `ToolOutput` Pydantic model
@@ -60,11 +64,14 @@ Upload → FileTypeRouter (python-magic)
 - Pages: `Upload` → `LiveAgent` → `Results` → `Report`
 - AI mode toggle button on Upload page (calls `POST /api/ai-mode` — live switch, no restart)
 - WebSocket in `LiveAgent.tsx` auto-reconnects with exponential backoff and replays buffered events
+- New components: `HypothesisPanel`, `AdversaryCard`, `EvidenceDrawer` (slide-out on timeline click)
 - No state management library — local `useState` only
 
 ## Key Constraints
 
-- **LLM calls**: exactly 2 per job (tool selection + correlation). Both use `claude-sonnet-4-6` or Ollama depending on `AI_MODE`.
+- **LLM calls**: up to 10 per job (1 per agent tool-decision step, max 9) + 1 final correlation. Uses `claude-sonnet-4-6` or Ollama depending on `AI_MODE`.
+- **Agent loop max**: `MAX_AGENT_STEPS = 9` in `executor.py`. Entropy always runs first with no LLM call.
+- **Agent reasoning**: every step logged as `AgentReasoningStep` in `job.agent_reasoning`; emitted as `llm_reason` WS event with `{step, chosen_tool, reasoning, findings_so_far}`.
 - **Tool output caps**: strings → 80 items (correlator), pslist → 30, netscan → 30, cmdline → 20. Applied in `correlator.py::_cap_output()`.
 - **Suspicious strings**: correlator asks the LLM to return up to 10 forensically significant strings with `value`, `reason`, and `severity` (critical/high/medium/low). Stored in `CorrelationResult.suspicious_strings`.
 - **Confidence scoring** is rule-based in `pipeline/confidence.py`, not LLM-generated.
@@ -98,15 +105,17 @@ All tools run inside Docker. No host installation needed.
 
 ## Results Page Sections (in order)
 
-1. **Risk Score + Attack Hypothesis** — animated gauge (0–100) + LLM-generated hypothesis
+1. **Risk Score + Attack Hypotheses** — animated gauge (0–100) + 3 ranked hypotheses with confidence bars (`HypothesisPanel`)
 2. **File Entropy Analysis** — per-block entropy histogram, overall score, classification (benign/compressed/packed/encrypted)
 3. **MITRE ATT&CK Coverage** — 14-tactic heatmap; triggered tactics highlighted red with technique dots and hover tooltips
-4. **Executive Summary** — 1-paragraph LLM summary (conditional, shown if present)
-5. **Incident Timeline** — vertical event list with MITRE tactic/technique badges
-6. **Interactive Threat Graph** — SVG force-simulation graph; nodes = root + evidence + IOCs; drag to explore
-7. **Evidence Table** — findings with source tool and confidence bars
-8. **Suspicious Strings** — IOCs color-coded by severity (critical/high/medium/low), with VirusTotal enrichment notes
-9. **Tool Execution** — success/failure grid for all tools that ran
+4. **Adversary Attribution** — threat actor card if TTP match found (conditional)
+5. **Executive Summary** — 1-paragraph LLM summary (conditional, shown if present)
+6. **Incident Timeline** — vertical event list with MITRE badges + tool_source badges; click → `EvidenceDrawer`
+7. **Interactive Threat Graph** — SVG force-simulation graph; nodes = root + evidence + IOCs; drag to explore
+8. **Evidence Table** — findings with source tool and confidence bars
+9. **Suspicious Strings** — IOCs color-coded by severity (critical/high/medium/low), with VirusTotal enrichment notes
+10. **Tool Execution** — success/failure grid for all tools that ran
+11. **Agent Reasoning Log** — collapsible; shows all `AgentReasoningStep` decisions
 
 ## Frontend Components
 
@@ -115,11 +124,14 @@ All tools run inside Docker. No host installation needed.
 | `ThreatGraph.tsx` | Custom SVG force-simulation graph. Uses `viewBox` for DPI-independence (Mac Retina safe). No canvas. Drag via `getScreenCTM().inverse()`. Simulation cools after 260 frames. |
 | `MitreHeatmap.tsx` | 14-tactic ATT&CK grid. Matching handles names, IDs, short codes, aliases, and partial strings. Technique→tactic fallback via `TECHNIQUE_TACTIC` map. Responsive with `overflow-x-auto`. |
 | `EntropyChart.tsx` | SVG bar chart of per-block entropy. `preserveAspectRatio="none"` for full-width stretch. Dashed threshold lines at 5.0, 6.5, 7.2. Hex offset X-axis. Three stat cards below. |
-| `Timeline.tsx` | Vertical timeline with MITRE badges |
+| `Timeline.tsx` | Vertical timeline with MITRE badges + purple tool_source badge. `onEventClick` prop triggers `EvidenceDrawer`. |
+| `EvidenceDrawer.tsx` | Slide-out right-side drawer. Shows raw tool output for clicked timeline event. Closes on backdrop, X, or Escape. |
+| `HypothesisPanel.tsx` | 3 ranked hypothesis cards (red/yellow/grey). Confidence bars. Falls back to plain text if hypotheses array empty. |
+| `AdversaryCard.tsx` | Purple-themed card: actor name, motivation, confidence %, TTP badges, notes. Shown if `correlation.adversary` present. |
 | `EvidenceTable.tsx` | Findings table with confidence progress bars |
 | `ThreatRiskScore.tsx` | Animated SVG circle gauge (0–100) |
 | `ConfidenceBadge.tsx` | Inline confidence percentage badge |
-| `TerminalStream.tsx` | Live WebSocket event terminal |
+| `TerminalStream.tsx` | Live WebSocket event terminal; `llm_reason` events show as expandable purple THINK rows |
 | `BootScreen.tsx` | Initial splash screen |
 
 ## Adding New YARA Rules

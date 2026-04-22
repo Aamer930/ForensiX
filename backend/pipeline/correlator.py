@@ -78,16 +78,22 @@ produce a JSON incident report. Be precise and evidence-based.
 Return ONLY valid JSON — no markdown, no explanation, just the JSON object.
 Schema:
 {
-  "timeline": [{"time": "<timestamp or Unknown>", "event": "<description>", "mitre_tactic": "<e.g. Execution>", "mitre_technique": "<e.g. T1059>"}],
-  "hypothesis": "<attack hypothesis, 2-4 sentences>",
+  "timeline": [{"time": "<timestamp or T+Xs>", "event": "<description>", "mitre_tactic": "<e.g. Execution>", "mitre_technique": "<e.g. T1059>", "tool_source": "<tool name that produced this finding>"}],
+  "hypothesis": "<primary attack hypothesis, 2-4 sentences>",
+  "hypotheses": [
+    {"label": "<short name e.g. Mirai Botnet>", "description": "<2-3 sentences>", "confidence": <0-100>},
+    {"label": "<second scenario>", "description": "<2-3 sentences>", "confidence": <0-100>},
+    {"label": "<third scenario>", "description": "<2-3 sentences>", "confidence": <0-100>}
+  ],
   "evidence": [{"finding": "<what was found>", "source": "<tool name>", "confidence": <0-100>}],
   "summary": "<1 paragraph executive summary>",
   "suspicious_strings": [{"value": "<string>", "reason": "<why suspicious>", "severity": "<critical|high|medium|low>"}]
 }
 Rules:
+- hypotheses: rank from most to least likely. Confidence values must sum to <= 100.
 - For suspicious_strings: pick up to 10 forensically significant strings (IPs, domains, registry keys, commands).
 - Severity: critical=C2/exploit/rootkit, high=persistence/lateral-movement, medium=recon/staging, low=informational.
-- For timeline events: you MUST include a MITRE ATT&CK tactic and technique ID for EVERY event. Choose the most appropriate one. Do NOT use null.
+- For timeline events: include mitre_tactic, mitre_technique, AND tool_source for EVERY event. Do NOT use null.
 - You MUST return valid JSON. No trailing commas. Escape quotes in strings with backslash.
 - Do NOT wrap the JSON in an array. Return a single JSON object starting with { and ending with }."""
 
@@ -492,11 +498,33 @@ def _build_deterministic_report(tool_outputs: list[ToolOutput]) -> CorrelationRe
            "Further behavioral analysis is recommended to determine definitive classification. ")
     )
 
+    from models import Hypothesis
     final_timeline = timeline[:20]
     final_suspicious = suspicious[:10]
+
+    if yara_matches:
+        det_hypotheses = [
+            Hypothesis(label="Known Malware Family", description=f"YARA signatures matched {len(yara_matches)} known rule(s): {', '.join(m.get('rule','?') for m in yara_matches[:3])}. This is the most likely scenario given direct signature hits.", confidence=65),
+            Hypothesis(label="Novel Variant / Packer", description="The sample may be a new variant of a known family using different packing or obfuscation to evade detection, with only partial signature overlap.", confidence=25),
+            Hypothesis(label="False Positive / Test File", description="Low probability: the matches could stem from shared code patterns in a benign file, such as a security research tool or test sample.", confidence=10),
+        ]
+    elif suspicious:
+        det_hypotheses = [
+            Hypothesis(label="Potentially Malicious (No Signature)", description=f"No YARA signatures matched but {len(suspicious)} IOCs found including suspicious strings and system references. Possibly a novel or custom implant.", confidence=55),
+            Hypothesis(label="Packed / Obfuscated Malware", description="High entropy or obfuscation may be hiding malicious code from static signature matching. Dynamic analysis recommended.", confidence=30),
+            Hypothesis(label="Benign with False Positives", description="The IOCs may be present in legitimate software. Context and behavioral analysis would clarify.", confidence=15),
+        ]
+    else:
+        det_hypotheses = [
+            Hypothesis(label="Clean / Inconclusive", description="No definitive malicious indicators found. The file may be benign or use advanced evasion techniques beyond static analysis.", confidence=60),
+            Hypothesis(label="Advanced Evasion", description="Sophisticated threat actors use anti-forensics to defeat static tools. Behavioral sandbox analysis may reveal hidden activity.", confidence=25),
+            Hypothesis(label="Corrupted / Truncated Artifact", description="The artifact may be incomplete or corrupted, causing tools to fail to extract meaningful forensic data.", confidence=15),
+        ]
+
     return CorrelationResult(
         timeline=final_timeline,
         hypothesis=hypothesis,
+        hypotheses=det_hypotheses,
         evidence=evidence,
         summary=summary,
         suspicious_strings=final_suspicious,
@@ -506,26 +534,48 @@ def _build_deterministic_report(tool_outputs: list[ToolOutput]) -> CorrelationRe
 
 
 def correlate(tool_outputs: list[ToolOutput]) -> CorrelationResult:
+    from models import Hypothesis
     capped = [_cap_output(o) for o in tool_outputs]
     user_msg = json.dumps(capped, indent=2)
 
     last_err = None
-    for attempt in range(4):  # 4 retries
+    for attempt in range(4):
         try:
-            text = llm_client.call(_SYSTEM, user_msg, max_tokens=3000)
+            text = llm_client.call(_SYSTEM, user_msg, max_tokens=6000)
             print(f"[correlator] LLM attempt {attempt+1}, response length: {len(text)}")
             data = _parse_response(text)
 
-            # Validate we got meaningful data (not empty)
             if not data.get("hypothesis") and not data.get("evidence") and not data.get("timeline"):
                 raise ValueError("LLM returned empty/meaningless report data")
 
-            tl = [TimelineEvent(**e) for e in data.get("timeline", [])]
+            tl = []
+            for e in data.get("timeline", []):
+                tl.append(TimelineEvent(
+                    time=e.get("time", "Unknown"),
+                    event=e.get("event", "Unknown"),
+                    mitre_tactic=e.get("mitre_tactic"),
+                    mitre_technique=e.get("mitre_technique"),
+                    tool_source=e.get("tool_source"),
+                ))
             ev = [Finding(**e) for e in data.get("evidence", [])]
             ss = [SuspiciousString(**s) for s in data.get("suspicious_strings", [])]
+
+            raw_hyps = data.get("hypotheses", [])
+            hypotheses = []
+            for h in raw_hyps[:3]:
+                try:
+                    hypotheses.append(Hypothesis(
+                        label=h.get("label", "Unknown scenario"),
+                        description=h.get("description", ""),
+                        confidence=int(h.get("confidence", 33)),
+                    ))
+                except Exception:
+                    pass
+
             return CorrelationResult(
                 timeline=tl,
                 hypothesis=data.get("hypothesis", "Unable to determine attack hypothesis."),
+                hypotheses=hypotheses,
                 evidence=ev,
                 summary=data.get("summary", ""),
                 suspicious_strings=ss,
@@ -536,7 +586,6 @@ def correlate(tool_outputs: list[ToolOutput]) -> CorrelationResult:
             last_err = e
             print(f"[correlator] Attempt {attempt+1} failed: {e}")
 
-    # All LLM attempts failed — build report deterministically from raw tool data
     print(f"[correlator] All LLM attempts failed. Building deterministic report from tool data.")
     try:
         return _build_deterministic_report(tool_outputs)
@@ -545,6 +594,7 @@ def correlate(tool_outputs: list[ToolOutput]) -> CorrelationResult:
         return CorrelationResult(
             timeline=[],
             hypothesis="Analysis could not be completed due to an error.",
+            hypotheses=[],
             evidence=[],
             summary=f"Error during correlation: {str(last_err)}",
         )

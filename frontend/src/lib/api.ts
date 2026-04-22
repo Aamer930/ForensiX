@@ -6,6 +6,46 @@ export interface UploadResponse {
   file_type: string
 }
 
+export interface Hypothesis {
+  label: string
+  description: string
+  confidence: number
+}
+
+export interface AdversaryProfile {
+  name: string
+  motivation: string
+  ttps: string[]
+  confidence: number
+  notes: string
+}
+
+export interface AgentReasoningStep {
+  step: number
+  chosen_tool: string
+  reasoning: string
+  findings_so_far: string
+}
+
+export interface Correlation {
+  timeline: { time: string; event: string; mitre_tactic?: string; mitre_technique?: string; tool_source?: string }[]
+  hypothesis: string
+  hypotheses: Hypothesis[]
+  evidence: { finding: string; source: string; confidence: number }[]
+  summary: string
+  suspicious_strings: { value: string; reason: string; severity: 'critical' | 'high' | 'medium' | 'low' }[]
+  risk_score: number
+  mitre_tactics: string[]
+  adversary?: AdversaryProfile
+}
+
+export interface ToolOutput {
+  tool: string
+  success: boolean
+  data: Record<string, unknown>
+  error: string | null
+}
+
 export interface Job {
   job_id: string
   status: 'pending' | 'running' | 'complete' | 'failed'
@@ -14,23 +54,7 @@ export interface Job {
   correlation: Correlation | null
   tool_outputs: ToolOutput[]
   error: string | null
-}
-
-export interface Correlation {
-  timeline: { time: string; event: string; mitre_tactic?: string; mitre_technique?: string }[]
-  hypothesis: string
-  evidence: { finding: string; source: string; confidence: number }[]
-  summary: string
-  suspicious_strings: { value: string; reason: string; severity: 'critical' | 'high' | 'medium' | 'low' }[]
-  risk_score: number
-  mitre_tactics: string[]
-}
-
-export interface ToolOutput {
-  tool: string
-  success: boolean
-  data: Record<string, unknown>
-  error: string | null
+  agent_reasoning: AgentReasoningStep[]
 }
 
 export async function uploadFile(file: File): Promise<UploadResponse> {

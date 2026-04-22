@@ -72,8 +72,8 @@ The system supports two AI modes: a cloud-based mode using the Claude API for hi
 **Artefact Upload and Type Detection**
 Users upload a forensic artefact through a drag-and-drop interface. The system uses file signature analysis to classify the artefact as a memory dump, PE executable, log file, disk image, or unsupported type. Unsupported artefacts are rejected gracefully with a clear error message.
 
-**Autonomous Tool Selection**
-The AI agent receives the artefact type and a sample of extracted strings, then decides which forensic tools to run and in what order. This decision is made by the language model, not hardcoded rules. If the model's choice is invalid or fails, a rule-based fallback ensures the pipeline continues reliably.
+**Iterative Tool Selection**
+The AI agent decides which forensic tool to run at each step, one at a time. After seeing the result of each tool, it decides whether to run another tool or declare the evidence gathering complete. This iterative loop continues for up to 9 decisions (plus entropy = max 10 LLM calls). Every decision is recorded with full reasoning text, visible in the terminal and in the Agent Reasoning Log. If the model fails, a rule-based fallback ensures the pipeline continues reliably.
 
 **Sequential Tool Execution**
 Each selected tool runs one at a time. Output from each tool is collected in a normalized, structured format before being passed to the next stage. Tools include strings extraction, YARA malware scanning, Volatility3 memory analysis, and binwalk binary inspection.
@@ -81,8 +81,20 @@ Each selected tool runs one at a time. Output from each tool is collected in a n
 **Live Agent Activity Stream**
 A terminal-style interface on the frontend shows the user exactly what the agent is doing at every step — which tool is running, what it found, and when it completes. This stream is delivered over WebSocket and replays on reconnect so no events are lost.
 
-**Findings Correlation and Hypothesis Generation**
-After all tools have run, the language model receives the combined structured output and produces an incident timeline, an attack hypothesis in plain English, and a scored evidence table. Confidence scores are assigned using rule-based logic for reliability.
+**Findings Correlation and Multi-Hypothesis Generation**
+After all tools have run, the language model receives the combined structured output and produces an incident timeline, three ranked attack hypotheses in plain English, and a scored evidence table. Confidence scores are assigned using rule-based logic for reliability.
+
+**Agent Reasoning Log**
+Every AI tool-selection decision is captured as an `AgentReasoningStep` — including the chosen tool, the reasoning behind it, and a summary of findings so far. These appear live in the terminal as purple THINK steps and are displayed in a collapsible Reasoning Log section on the Results page.
+
+**Multi-Hypothesis Attack Analysis**
+Instead of a single hypothesis, the correlator produces three ranked attack scenarios. Each hypothesis has a label (e.g., "Cridex Banking Trojan Infection"), a 2–3 sentence description, and a confidence percentage. The highest-confidence hypothesis is highlighted; all three are displayed side by side.
+
+**Adversary Attribution**
+After correlation, observed MITRE tactics and techniques are matched against a built-in lookup table of six known threat actor profiles (APT28/Fancy Bear, Lazarus Group, FIN7, Carbanak, Turla, and Sandworm). If a match meets the minimum confidence threshold, an Adversary Attribution card is displayed showing the actor name, motivation, matched TTPs, confidence score, and analyst notes.
+
+**Evidence-Linked Timeline**
+Every timeline event carries a `tool_source` field identifying which forensic tool produced it. Clicking a timeline event opens a slide-out drawer with the full raw output from that tool, allowing investigators to trace each conclusion directly to its source evidence.
 
 **File Entropy Analysis**
 Every file is analyzed for Shannon entropy before other tools run. The file is split into ~160 equal blocks and the entropy of each block is calculated (0.0–8.0 scale). Results are displayed as a color-coded bar chart with dashed reference lines at 5.0, 6.5, and 7.2. The overall entropy determines a classification: benign (<5.0), compressed (5.0–6.5), packed (6.5–7.2), or encrypted (≥7.2). High-entropy regions that may indicate packed or encrypted payloads are counted separately.
@@ -124,10 +136,10 @@ The following steps describe the complete flow from upload to report:
 2. The backend receives the file and assigns it a unique job ID.
 3. The file type is detected using magic byte analysis.
 4. If the file type is unsupported, the pipeline stops and returns a clear error to the user.
-5. Three mandatory tools always run first: **entropy** (Shannon entropy analysis), **strings** (text extraction), and **YARA** (signature matching).
-6. The AI agent (Claude or Ollama) receives the file type and tool results so far, then decides whether to run additional tools (Volatility3, binwalk) — up to 3 more steps.
+5. **Entropy** analysis always runs first as a mandatory step (no LLM call consumed).
+6. The AI agent enters an iterative loop: it receives the current findings and decides which single tool to run next (strings, YARA, Volatility3, or binwalk), or declares the evidence sufficient and stops. This loop repeats up to 9 times. Every decision is logged with the agent's reasoning.
 7. Each tool result is normalized into structured JSON and emitted as a real-time WebSocket event.
-8. Once all tools have completed, the AI agent receives the combined output and produces the full correlation: risk score, MITRE tactics, timeline, hypothesis, evidence list, suspicious strings, and executive summary.
+8. Once the agent declares DONE, the final LLM call correlates all outputs and produces: risk score, MITRE tactics, timeline (with tool sources), three ranked hypotheses, adversary attribution, evidence list, suspicious strings, and executive summary.
 9. A rule-based confidence scorer annotates each evidence item with a reliability score.
 10. Each suspicious string is checked against the VirusTotal API; malicious detections escalate severity to critical.
 11. The results are stored in the job state and made available through the results page.
@@ -137,17 +149,19 @@ The following steps describe the complete flow from upload to report:
 
 ## 8. Agent Decision-Making Flow
 
-The agent makes two intelligent decisions during each analysis run:
+The agent operates in two phases per analysis run, with up to 10 total LLM calls.
 
-**Decision 1 — Tool Selection**
+**Phase 1 — Iterative Tool Selection (up to 9 calls)**
 
-The agent is given the artefact type and a sample of extracted strings. It is asked to return an ordered JSON list of which tools to run. The available tools are strings, YARA, Volatility3, and binwalk. The agent follows built-in rules embedded in the prompt — for example, Volatility3 is only suggested for memory dumps. If the model returns an invalid or empty list, the system falls back to a predefined default set based on file type.
+Entropy analysis always runs first with no LLM call. Then the agent enters a loop: it receives the current file type, the list of tools already run, and a summary of findings so far. It returns a single JSON decision: `{"next_tool": "<tool>", "reasoning": "<why>"}`. The agent can choose from strings, YARA, Volatility3, or binwalk — or return `"DONE"` to end the loop. Each decision is recorded as an `AgentReasoningStep` and streamed to the terminal as a purple THINK event.
 
-**Decision 2 — Findings Correlation**
+This loop continues for up to 9 iterations. The agent follows embedded rules (e.g., Volatility3 is only valid for memory dumps). If the model fails or returns an invalid tool, a deterministic fallback runs the next unused tool from a predefined order.
 
-After all tools have run, the agent receives all normalized tool outputs in a single prompt. It is asked to return a structured JSON object containing the incident timeline, attack hypothesis, evidence list, executive summary, and a list of up to 10 suspicious strings — each with a severity rating and plain-English explanation. The output schema is strictly defined to ensure the frontend can render it reliably regardless of which AI backend is in use.
+**Phase 2 — Findings Correlation (1 call)**
 
-This two-call architecture keeps the AI's role focused and predictable — one decision per stage — rather than using a complex multi-step reasoning loop that is harder to debug or demo reliably.
+After the agent declares DONE, all normalized tool outputs are sent in a single prompt. The agent returns a structured JSON object containing: risk score (0–100), MITRE tactics list, incident timeline (each event tagged with `tool_source`), three ranked attack hypotheses (each with label, description, and confidence), evidence list, executive summary, and up to 10 suspicious strings with severity ratings.
+
+After correlation, a rule-based scorer annotates confidence, VirusTotal enriches IOCs, and a TTP-matching function runs adversary attribution against six built-in threat actor profiles.
 
 ---
 
@@ -254,13 +268,15 @@ A FastAPI application that handles file uploads, manages job state, runs the for
 **Agent Pipeline**
 A sequential async pipeline that runs inside the backend process:
 1. `FileTypeRouter` — classifies the artefact
-2. `ToolSelector` — asks the AI which tools to run
-3. `ToolExecutor` — runs each tool, emits WebSocket events
-4. `Correlator` — asks the AI to correlate all outputs
+2. `ToolExecutor` — runs entropy (mandatory), then enters iterative agent loop
+3. `ToolSelector` — called once per loop iteration; AI decides next tool or DONE
+4. `Correlator` — final AI call; correlates all outputs, produces 3 hypotheses
 5. `ConfidenceScorer` — applies rule-based confidence scores
-6. `PDFBuilder` — generates the report on demand
+6. `AdversaryProfiler` — matches TTPs to known threat actor profiles
+7. `VTClient` — enriches suspicious IOCs via VirusTotal
+8. `PDFBuilder` — generates the report on demand
 
-Each stage is a separate module with a single responsibility. The AI is involved only in stages 2 and 4 — all other stages are deterministic Python logic.
+The AI is involved in stages 3 (multiple times) and 4 (once). All other stages are deterministic Python logic.
 
 ```
 [Browser]
@@ -271,19 +287,21 @@ Each stage is a separate module with a single responsibility. The AI is involved
     ├── Upload → FileTypeRouter → JobStore
     │
     └── Pipeline (background task)
-            ├── ToolSelector    ←── AI (Call 1)
-            ├── ToolExecutor
-            │     ├── entropy   (mandatory)
-            │     ├── strings   (mandatory)
-            │     ├── YARA      (mandatory)
-            │     ├── Volatility3 (AI-decided)
-            │     └── binwalk   (AI-decided)
-            ├── Correlator      ←── AI (Call 2)
-            │     └── produces: risk_score, mitre_tactics,
-            │                   timeline, hypothesis, evidence,
-            │                   suspicious_strings, summary
+            ├── entropy         (always first, no LLM call)
+            │
+            ├── Agent Loop ×N  ←── AI (1 call per step, max 9)
+            │     ├── selector: {"next_tool": "...", "reasoning": "..."}
+            │     ├── _emit_reason → AgentReasoningStep + llm_reason WS event
+            │     └── execute tool → collect output → repeat
+            │
+            ├── Correlator      ←── AI (final call)
+            │     └── produces: risk_score, mitre_tactics, timeline,
+            │                   hypotheses×3, evidence, suspicious_strings,
+            │                   summary, tool_source per event
+            │
             ├── ConfidenceScorer
-            ├── VirusTotalClient (IOC enrichment)
+            ├── AdversaryProfiler (TTP lookup → AdversaryProfile)
+            ├── VirusTotalClient  (IOC enrichment)
             └── PDFBuilder (on demand)
 ```
 
@@ -298,17 +316,19 @@ The entry point to the application. Contains a drag-and-drop upload zone that ac
 Displays a terminal-style interface that streams the agent's activity in real time. Each event is color-coded: yellow for a tool starting, green for success, red for errors, and blue for AI reasoning steps. A progress bar shows how many tools have completed. An active tool indicator shows which tool is currently running. If the analysis completes successfully, the user is automatically redirected to the results page.
 
 **Results Page**
-Displays the full analysis output in nine sections:
+Displays the full analysis output in these sections (in order):
 
-1. **Threat Risk Score** — animated radial gauge (0–100) beside the attack hypothesis
+1. **Threat Risk Score + Attack Hypotheses** — animated radial gauge (0–100) beside three ranked hypotheses with confidence bars
 2. **File Entropy Analysis** — color-coded SVG bar chart of per-block entropy with classification badge and stat cards
 3. **MITRE ATT&CK Coverage** — interactive 14-tactic heatmap; tactic cells highlight on evidence match
-4. **Executive Summary** — AI-generated one-paragraph overview
-5. **Incident Timeline** — chronological list of events extracted from tool outputs
-6. **Interactive Threat Graph** — physics-based force graph linking sample → evidence → IOC nodes; drag to explore
-7. **Evidence Table** — all findings with source tool and confidence percentage
-8. **Suspicious Strings** — up to 10 IOC strings with severity badges (critical/high/medium/low) and VirusTotal annotation
-9. **Tool Execution Grid** — per-tool success/failure status cards
+4. **Adversary Attribution** — threat actor card (name, motivation, matched TTPs, confidence) — shown if a match is found
+5. **Executive Summary** — AI-generated one-paragraph overview
+6. **Incident Timeline** — chronological list of events; click any event to open a slide-out drawer with the raw tool output
+7. **Interactive Threat Graph** — physics-based force graph linking sample → evidence → IOC nodes; drag to explore
+8. **Evidence Table** — all findings with source tool and confidence percentage
+9. **Suspicious Strings** — up to 10 IOC strings with severity badges (critical/high/medium/low) and VirusTotal annotation
+10. **Tool Execution Grid** — per-tool success/failure status cards
+11. **Agent Reasoning Log** — collapsible log of every AI decision with chosen tool, reasoning, and running findings summary
 
 An "Export PDF" button generates the downloadable report. A "← New" button returns to the upload page.
 
@@ -344,12 +364,13 @@ Files that cannot be classified into a supported type are rejected at the file t
 
 After all tools have completed, the agent receives a combined, capped version of all tool outputs in a single structured prompt. The cap limits ensure the total token usage remains reasonable and prevents large tool outputs from degrading the AI's reasoning quality.
 
-The AI is asked to produce seven outputs simultaneously:
+The AI is asked to produce eight outputs simultaneously:
 
 - **Risk score**: an integer 0–100 representing the composite threat level
 - **MITRE tactics**: a list of MITRE ATT&CK tactic names observed across the timeline
-- **Timeline**: a list of events ordered chronologically, each with a timestamp (or "Unknown" if no timestamp is available), a plain-English description, and optional MITRE tactic/technique fields
-- **Hypothesis**: a 2–4 sentence paragraph explaining the most likely attack scenario based on the combined evidence
+- **Timeline**: a list of events ordered chronologically, each with a timestamp, plain-English description, optional MITRE tactic/technique fields, and a `tool_source` field identifying which forensic tool produced this event
+- **Hypotheses**: three ranked attack scenarios, each with a `label` (short name), `description` (2–3 sentences), and `confidence` (0–100)
+- **Hypothesis**: the top-ranked hypothesis as a standalone paragraph (backward compatibility)
 - **Evidence list**: individual findings, each tagged with the source tool that produced it
 - **Summary**: a single paragraph suitable for an executive audience
 - **Suspicious strings**: up to 10 IOC strings each with `value`, `severity` (critical/high/medium/low), and `reason`
@@ -491,7 +512,7 @@ The system is intentionally modular and extensible. New forensic tools can be ad
 
 ---
 
-*Document Version: 2.0*
+*Document Version: 3.0*
 *Project: ForensiX — Autonomous Forensic Agent*
 *Type: University Project Documentation*
 

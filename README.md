@@ -42,16 +42,18 @@ The system is built for cybersecurity students, researchers, and analysts who wa
 | Feature | Description |
 |---------|-------------|
 | **Artefact Type Detection** | Automatically classifies uploads using magic byte analysis |
-| **Autonomous Tool Selection** | AI decides which forensic tools to run based on artefact type |
-| **Multi-Tool Execution** | Runs entropy, strings, YARA, Volatility3, and binwalk sequentially |
+| **Iterative Agent Loop** | Agent decides each tool step-by-step (up to 10 LLM calls), not a hardcoded sequence |
+| **Agent Reasoning Log** | Every AI decision logged with reasoning — visible live in terminal and in Results |
+| **Multi-Tool Execution** | Runs entropy, strings, YARA, Volatility3, and binwalk as needed |
 | **File Entropy Analysis** | Shannon entropy bar chart across 160 blocks with classification (benign/compressed/packed/encrypted) |
 | **Live Agent Stream** | Terminal-style real-time feed of every agent action over WebSocket |
 | **Findings Correlation** | AI cross-references all tool outputs to build the full picture |
+| **Multi-Hypothesis Analysis** | 3 ranked attack scenarios with confidence percentages, not just one hypothesis |
+| **Adversary Attribution** | Matches observed TTPs against 6 known threat actor profiles (APT28, Lazarus, etc.) |
+| **Evidence-Linked Timeline** | Click any timeline event to open a drawer with the raw tool output that produced it |
 | **Threat Risk Score** | Animated gauge showing composite risk level (0–100) |
 | **MITRE ATT&CK Heatmap** | Interactive grid showing which of the 14 MITRE tactics were observed |
 | **Interactive Threat Graph** | Physics-based SVG force graph linking the sample to evidence nodes and IOC nodes — drag to explore |
-| **Incident Timeline** | Chronological sequence of events extracted from evidence |
-| **Attack Hypothesis** | Plain-English explanation of what likely happened |
 | **Evidence Table** | Findings with source tool and rule-based confidence scores |
 | **Suspicious Strings Analysis** | AI flags the most dangerous strings with severity and explanation |
 | **VirusTotal Integration** | IOC strings checked against VirusTotal; malicious detections elevate severity to critical |
@@ -121,10 +123,6 @@ docker compose up --build
 ## 🔁 How It Works
 
 ```
-                        ┌─────────────────────────────────────────┐
-                        │              ForensiX Pipeline           │
-                        └─────────────────────────────────────────┘
-
   Upload artefact
         │
         ▼
@@ -132,51 +130,53 @@ docker compose up --build
   │ FileType    │ ──────────────────────► Error response
   │ Router      │
   └──────┬──────┘
-         │ memory_dump / pe_executable / log_file / disk_image
+         │
          ▼
-  ┌─────────────┐      "Given this file type and these strings,
-  │   AI Agent  │       which tools should I run?"
-  │  Call #1    │ ◄──── Claude API  or  Ollama (local)
-  └──────┬──────┘
-         │ ["strings", "yara", "volatility3"]
-         ▼
-  ┌─────────────────────────────────────────────────────┐
-  │                  Tool Executor                       │
-  │                                                      │
-  │  entropy ──► strings ──► YARA ──► Volatility3       │
-  │     │            │          │           │            │
-  │  blocks +     filter     rule        pslist +        │
-  │  entropy      + cap      matches     netscan +       │
-  │  classify                + meta      cmdline         │
-  │                                      ──► binwalk     │
-  └──────────────────────────┬──────────────────────────┘
-                             │  All outputs (normalized JSON)
-                             ▼
-  ┌─────────────┐      "Given these tool outputs,
-  │   AI Agent  │       what happened? Build the timeline."
-  │  Call #2    │ ◄──── Claude API  or  Ollama (local)
+  ┌─────────────┐   Step 0 — always mandatory, no LLM call
+  │   entropy   │   Shannon entropy analysis + classification
   └──────┬──────┘
          │
          ▼
-  ┌──────────────────────────────────────┐
-  │  Correlation Result                   │
-  │  ├── Risk Score (0–100)               │
-  │  ├── MITRE ATT&CK Tactics             │
-  │  ├── Incident Timeline                │
-  │  ├── Attack Hypothesis                │
-  │  ├── Evidence Table + Confidence      │
-  │  ├── Suspicious Strings (severity)    │
-  │  └── Executive Summary               │
-  └──────────────────┬───────────────────┘
+  ┌─────────────────────────────────────────────────────┐
+  │              Iterative Agent Loop                    │
+  │              (up to 9 LLM decisions)                 │
+  │                                                      │
+  │  ┌──────────┐   "What's next given what we know?"   │
+  │  │ AI Agent │ ◄──── Claude API  or  Ollama           │
+  │  └────┬─────┘                                        │
+  │       │ {"next_tool": "volatility3", "reasoning":…}  │
+  │       ▼                                              │
+  │  Run tool → collect output → repeat until DONE       │
+  │                                                      │
+  │  Available: strings · YARA · Volatility3 · binwalk   │
+  └──────────────────────────┬──────────────────────────┘
+                             │  All outputs (normalized JSON)
+                             ▼
+  ┌─────────────┐      "Correlate everything. Build the timeline."
+  │   AI Agent  │ ◄──── Final LLM call
+  └──────┬──────┘
+         │
+         ▼
+  ┌──────────────────────────────────────────────┐
+  │  Correlation Result                           │
+  │  ├── Risk Score (0–100)                       │
+  │  ├── MITRE ATT&CK Tactics                     │
+  │  ├── Incident Timeline (with tool_source)     │
+  │  ├── 3 Ranked Attack Hypotheses               │
+  │  ├── Adversary Attribution                    │
+  │  ├── Evidence Table + Confidence Scores       │
+  │  ├── Suspicious Strings (severity)            │
+  │  └── Executive Summary                        │
+  └──────────────────┬───────────────────────────┘
                      │
                      ▼
-  VirusTotal API check on IOC strings
+  VirusTotal IOC enrichment  →  Adversary profiling
                      │
                      ▼
   PDF Report  +  Results Page  +  Live Stream (WebSocket)
 ```
 
-**The AI makes exactly two decisions per analysis run.** Everything else — tool execution, output normalization, confidence scoring, PDF generation — is deterministic Python code. This keeps the system reliable and debuggable.
+**The agent makes one LLM call per tool decision, then one final call to correlate.** Up to 10 LLM calls per run. Every decision is logged with full reasoning — visible live in the terminal and in the Agent Reasoning Log on the Results page.
 
 ---
 
@@ -311,9 +311,10 @@ forensix/
 │   │
 │   ├── pipeline/
 │   │   ├── router.py           # File type detection
-│   │   ├── selector.py         # AI Call 1 — tool selection
-│   │   ├── executor.py         # Tool execution + event streaming
-│   │   ├── correlator.py       # AI Call 2 — findings correlation
+│   │   ├── selector.py         # AI — iterative tool decision (one call per step)
+│   │   ├── executor.py         # Iterative agent loop + event streaming
+│   │   ├── correlator.py       # AI — findings correlation + multi-hypothesis
+│   │   ├── adversary.py        # Adversary attribution via TTP matching
 │   │   └── confidence.py       # Rule-based confidence scoring
 │   │
 │   ├── tools/
@@ -342,8 +343,11 @@ forensix/
 │   │   │   └── Report.tsx      # PDF preview + download
 │   │   │
 │   │   ├── components/
-│   │   │   ├── TerminalStream.tsx
-│   │   │   ├── Timeline.tsx
+│   │   │   ├── TerminalStream.tsx    # Live agent stream (incl. THINK steps)
+│   │   │   ├── Timeline.tsx          # Clickable timeline with tool badges
+│   │   │   ├── EvidenceDrawer.tsx    # Slide-out raw evidence drawer
+│   │   │   ├── HypothesisPanel.tsx   # 3 ranked attack hypotheses
+│   │   │   ├── AdversaryCard.tsx     # Threat actor attribution card
 │   │   │   ├── EvidenceTable.tsx
 │   │   │   ├── ConfidenceBadge.tsx
 │   │   │   ├── EntropyChart.tsx      # SVG entropy bar chart
@@ -404,11 +408,12 @@ The backend exposes a REST API at `http://localhost:8000`. Interactive docs avai
 ### WebSocket Event Types
 
 ```json
-{ "type": "llm_thinking", "message": "Selecting tools based on file type..." }
+{ "type": "llm_thinking", "message": "Correlating findings..." }
+{ "type": "llm_reason",   "tool": "volatility3", "message": "Step 1: chose [volatility3] — memory dump detected...", "data": { "step": 1, "chosen_tool": "volatility3", "reasoning": "...", "findings_so_far": "..." } }
 { "type": "step_start",   "tool": "yara",  "message": "Running yara..." }
 { "type": "step_done",    "tool": "yara",  "message": "YARA: 3 rule matches found" }
 { "type": "step_error",   "tool": "yara",  "message": "YARA scan timeout" }
-{ "type": "complete",     "message": "Analysis complete.", "data": { "job_id": "..." } }
+{ "type": "complete",     "message": "Analysis complete." }
 { "type": "error",        "message": "Unsupported file type." }
 ```
 
@@ -463,6 +468,11 @@ The Vite dev server proxies `/api` and `/ws` requests to `localhost:8000` automa
 - [x] Interactive physics-based threat graph (drag to explore)
 - [x] VirusTotal IOC enrichment — malicious detections escalate severity to critical
 - [x] Threat risk score gauge (0–100)
+- [x] Iterative agent loop — AI decides each tool step, up to 10 LLM calls
+- [x] Agent Reasoning Log — every AI decision logged with full reasoning
+- [x] Multi-hypothesis analysis — 3 ranked attack scenarios with confidence
+- [x] Adversary attribution — TTP matching against 6 known threat actor profiles
+- [x] Evidence-linked timeline — click event to view raw tool output in drawer
 - [ ] LangGraph-based branching agent (conditional tool chains)
 - [ ] Persistent job storage with Redis / SQLite
 - [ ] Multi-artefact case management
@@ -480,8 +490,8 @@ Contributions are welcome. To add a new forensic tool:
 1. Create `backend/tools/yourtool_tool.py` — return a `ToolOutput` Pydantic model with `tool`, `success`, `data`, and optional `error`
 2. Register it in `pipeline/executor.py::_execute_tool()` with a new `elif tool_name == "yourtool":` branch
 3. Add a summary case in `pipeline/executor.py::_summarize_output()`
-4. Update the tool selection prompt in `pipeline/selector.py` so the AI knows the tool exists
-5. If the tool should always run, add its name to `mandatory_tools` in `executor.py`; otherwise the AI agent decides dynamically
+4. Add the tool name to the available tools list in `pipeline/selector.py` system prompt so the AI can choose it
+5. Add output cap logic in `pipeline/correlator.py::_cap_output()` if the tool can produce large outputs
 
 To add YARA rules, drop `.yar` files into `backend/yara_rules/` — they are auto-loaded at startup.
 
