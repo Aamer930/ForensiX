@@ -17,6 +17,17 @@ const TOOL_LABELS: Record<string, string> = {
 
 const STEPS = ['strings', 'yara', 'volatility3', 'binwalk']
 
+// Animated lines for the cyber loading effect
+const LOADING_LINES = [
+  'Initializing forensic agent kernel...',
+  'Loading YARA signature database (8 families)...',
+  'Calibrating memory analysis engine...',
+  'Connecting to Volatility3 framework...',
+  'Priming string extraction heuristics...',
+  'Mounting binary analysis subsystem...',
+  'Agent ready — beginning autonomous analysis...',
+]
+
 export default function LiveAgent() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
@@ -24,10 +35,28 @@ export default function LiveAgent() {
   const [status, setStatus] = useState<'connecting' | 'running' | 'complete' | 'error'>('connecting')
   const [activeTools, setActiveTools] = useState<Set<string>>(new Set())
   const [doneTools, setDoneTools] = useState<Set<string>>(new Set())
+  const [loadingLine, setLoadingLine] = useState(0)
+  const [showScanner, setShowScanner] = useState(true)
   const wsRef = useRef<WebSocket | null>(null)
   const retriesRef = useRef(0)
   const { toast } = useToast()
   usePageTitle('Live Agent')
+
+  // Animated loading text
+  useEffect(() => {
+    if (status !== 'connecting' && status !== 'running') return
+    const t = setInterval(() => {
+      setLoadingLine(prev => (prev + 1) % LOADING_LINES.length)
+    }, 2000)
+    return () => clearInterval(t)
+  }, [status])
+
+  // Hide scanner once first tool starts
+  useEffect(() => {
+    if (events.some(e => e.type === 'step_start')) {
+      setShowScanner(false)
+    }
+  }, [events])
 
   useEffect(() => {
     if (!jobId) return
@@ -94,6 +123,43 @@ export default function LiveAgent() {
         <StatusBadge status={status} />
       </div>
 
+      {/* Animated scanner effect during initialization */}
+      {showScanner && (
+        <div className="mb-5 p-6 rounded-xl border border-[#1E293B] bg-[#0F172A] fade-in-up overflow-hidden relative">
+          {/* Scanning line animation */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-scan-line" />
+          </div>
+          
+          {/* DNA helix / hex visualization */}
+          <div className="flex items-center justify-center mb-4">
+            <div className="flex gap-1">
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="w-1.5 rounded-full bg-green-500/60"
+                  style={{
+                    height: `${12 + Math.sin(i * 0.8 + Date.now() / 300) * 12}px`,
+                    animation: `pulse 1.5s ease-in-out ${i * 0.1}s infinite`,
+                    opacity: 0.3 + Math.random() * 0.7,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Loading text */}
+          <p className="text-center text-sm font-mono text-green-400 transition-all duration-500">
+            <span className="text-[#334155] mr-2">$</span>
+            {LOADING_LINES[loadingLine]}
+            <span className="cursor-blink ml-0.5">_</span>
+          </p>
+          <p className="text-center text-xs font-mono text-[#334155] mt-2">
+            ForensiX Autonomous Agent v1.0 — Preparing analysis environment
+          </p>
+        </div>
+      )}
+
       {/* Tool pipeline tracker */}
       <div className="mb-5 p-4 rounded-xl border border-[#1E293B] bg-[#0F172A] fade-in-up-1">
         <p className="text-xs font-mono text-[#334155] mb-3">PIPELINE</p>
@@ -101,7 +167,6 @@ export default function LiveAgent() {
           {STEPS.map((step, i) => {
             const done    = doneTools.has(step)
             const active  = [...activeTools].some(t => t === step || t.startsWith('vol_') && step === 'volatility3')
-            const pending = !done && !active
             return (
               <div key={step} className="flex items-center gap-2 flex-1">
                 <div className={`flex-1 py-2 px-3 rounded-lg border text-center text-xs font-mono transition-all duration-500 ${
@@ -132,15 +197,24 @@ export default function LiveAgent() {
             <span>PROGRESS</span>
             <span className="text-green-500">{progress}%</span>
           </div>
-          <div className="h-1 bg-[#0F172A] rounded-full overflow-hidden border border-[#1E293B]">
+          <div className="h-1.5 bg-[#0F172A] rounded-full overflow-hidden border border-[#1E293B]">
             <div
-              className="h-full rounded-full transition-all duration-700"
+              className="h-full rounded-full transition-all duration-700 relative"
               style={{
                 width: `${progress}%`,
                 background: 'linear-gradient(90deg, #15803D, #22C55E)',
                 boxShadow: '0 0 8px rgba(34,197,94,0.5)',
               }}
-            />
+            >
+              {/* Shimmer effect on progress bar */}
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="w-full h-full animate-shimmer"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)',
+                    backgroundSize: '200% 100%',
+                  }} />
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -184,7 +258,7 @@ function StatusBadge({ status }: { status: string }) {
   }
   const labels: Record<string, string> = {
     connecting: '◌ CONNECTING',
-    running:    '◆ RUNNING',
+    running:    '◆ ANALYSING',
     complete:   '✓ COMPLETE',
     error:      '✗ FAILED',
   }

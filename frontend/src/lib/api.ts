@@ -17,11 +17,13 @@ export interface Job {
 }
 
 export interface Correlation {
-  timeline: { time: string; event: string }[]
+  timeline: { time: string; event: string; mitre_tactic?: string; mitre_technique?: string }[]
   hypothesis: string
   evidence: { finding: string; source: string; confidence: number }[]
   summary: string
   suspicious_strings: { value: string; reason: string; severity: 'critical' | 'high' | 'medium' | 'low' }[]
+  risk_score: number
+  mitre_tactics: string[]
 }
 
 export interface ToolOutput {
@@ -39,8 +41,21 @@ export async function uploadFile(file: File): Promise<UploadResponse> {
   return res.json()
 }
 
-export async function uploadSample(): Promise<UploadResponse> {
-  const res = await fetch(`${BASE}/upload-sample`, { method: 'POST' })
+export interface SampleInfo {
+  filename: string
+  size: number
+  file_type: string
+  description: string
+}
+
+export async function getSamples(): Promise<{ samples: SampleInfo[] }> {
+  const res = await fetch(`${BASE}/sample`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function uploadSample(name: string = 'cridex.vmem'): Promise<UploadResponse> {
+  const res = await fetch(`${BASE}/upload-sample?name=${encodeURIComponent(name)}`, { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }

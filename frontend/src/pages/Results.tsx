@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { getJob, type Job } from '../lib/api'
 import Timeline from '../components/Timeline'
 import EvidenceTable from '../components/EvidenceTable'
+import ThreatGraph from '../components/ThreatGraph'
+import ThreatRiskScore from '../components/ThreatRiskScore'
+import MitreHeatmap from '../components/MitreHeatmap'
 import ResultsSkeleton from '../components/ResultsSkeleton'
 import { usePageTitle } from '../lib/usePageTitle'
 import { useToast } from '../components/Toast'
@@ -42,7 +45,7 @@ export default function Results() {
   const c = job.correlation
 
   return (
-    <div className="scanlines min-h-screen grid-bg px-4 py-8 max-w-4xl mx-auto">
+    <div className="scanlines min-h-screen grid-bg px-4 py-8 max-w-5xl mx-auto">
 
       {/* Header */}
       <div className="flex items-start justify-between mb-8 fade-in-up">
@@ -75,16 +78,33 @@ export default function Results() {
         </div>
       </div>
 
-      {/* Hypothesis */}
+      {/* Risk Score + Hypothesis side-by-side */}
       <section className="mb-6 fade-in-up-1">
-        <SectionHeader label="Attack Hypothesis" />
-        <div className="p-5 rounded-xl border border-[#1E293B] relative overflow-hidden"
-          style={{ background: 'rgba(15,23,42,0.8)' }}>
-          <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-500 to-transparent rounded-l-xl" />
-          <p className="text-[#CBD5E1] leading-relaxed pl-3">
-            {c?.hypothesis ?? 'No hypothesis generated.'}
-          </p>
+        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4">
+          {/* Risk Score Gauge */}
+          <ThreatRiskScore score={c?.risk_score ?? 0} />
+          
+          {/* Hypothesis */}
+          <div>
+            <SectionHeader label="Attack Hypothesis" />
+            <div className="p-5 rounded-xl border border-[#1E293B] relative overflow-hidden h-full"
+              style={{ background: 'rgba(15,23,42,0.8)' }}>
+              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-500 to-transparent rounded-l-xl" />
+              <p className="text-[#CBD5E1] leading-relaxed pl-3">
+                {c?.hypothesis ?? 'No hypothesis generated.'}
+              </p>
+            </div>
+          </div>
         </div>
+      </section>
+
+      {/* MITRE ATT&CK Heatmap */}
+      <section className="mb-6 fade-in-up-1">
+        <SectionHeader label="MITRE ATT&CK Coverage" />
+        <MitreHeatmap
+          tactics={c?.mitre_tactics ?? []}
+          timeline={c?.timeline ?? []}
+        />
       </section>
 
       {/* Summary */}
@@ -105,8 +125,17 @@ export default function Results() {
         </div>
       </section>
 
-      {/* Evidence */}
+      {/* Threat Graph */}
       <section className="mb-6 fade-in-up-3">
+        <SectionHeader label="Interactive Threat Graph" />
+        <ThreatGraph 
+          suspiciousStrings={c?.suspicious_strings ?? []} 
+          evidence={c?.evidence ?? []} 
+        />
+      </section>
+
+      {/* Evidence */}
+      <section className="mb-6 fade-in-up-4">
         <SectionHeader label="Evidence Table" />
         <EvidenceTable evidence={c?.evidence ?? []} />
       </section>

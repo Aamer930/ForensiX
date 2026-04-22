@@ -38,13 +38,17 @@ def _call_claude(system: str, user: str, max_tokens: int) -> str:
         return _call_ollama(system, user, max_tokens)
     import anthropic
     client = anthropic.Anthropic(api_key=key)
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return response.content[0].text.strip()
+    try:
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        print(f"[llm_client] Claude API error: {e}. Falling back to Ollama.")
+        return _call_ollama(system, user, max_tokens)
 
 
 # ── Ollama ────────────────────────────────────────────────────────────────────
@@ -83,4 +87,4 @@ def _call_ollama(system: str, user: str, max_tokens: int) -> str:
 
 
 def active_mode() -> str:
-    return f"ollama/{_OLLAMA_MODEL}" if _ai_mode == "ollama" else "claude/claude-sonnet-4-6"
+    return f"ollama/{_OLLAMA_MODEL}" if _ai_mode == "ollama" else "claude/claude-3.5-sonnet"

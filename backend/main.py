@@ -9,6 +9,7 @@ from models import JobStatus
 from report.pdf_builder import build_pdf
 from pipeline.health import check_ai_backend
 from pipeline import llm_client
+import db
 
 app = FastAPI(title="ForensiX", version="1.0.0")
 
@@ -22,14 +23,18 @@ app.add_middleware(
 app.include_router(upload.router, prefix="/api")
 app.include_router(ws.router)
 
-
 @app.on_event("startup")
 async def startup():
     print("\n" + "="*50)
     print("  ForensiX — Autonomous Forensic Agent v1.0")
     print("="*50)
+    db.init_db()
     check_ai_backend()
     print("="*50 + "\n")
+
+@app.get("/api/history")
+async def get_history():
+    return db.get_all_cases()
 
 
 @app.get("/api/jobs/{job_id}")

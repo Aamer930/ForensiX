@@ -1,4 +1,4 @@
-interface Event { time: string; event: string }
+interface Event { time: string; event: string; mitre_tactic?: string; mitre_technique?: string; }
 interface Props  { events: Event[] }
 
 export default function Timeline({ events }: Props) {
@@ -19,8 +19,15 @@ export default function Timeline({ events }: Props) {
             <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
           </div>
 
-          {/* Time */}
-          <p className="text-xs font-mono text-[#475569] mb-1">{ev.time}</p>
+          {/* Time & MITRE Badges */}
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-xs font-mono text-[#475569]">{ev.time}</p>
+            {ev.mitre_tactic && ev.mitre_technique && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-cyan-500/30 text-cyan-400 bg-cyan-500/10 tracking-widest uppercase ml-2">
+                {ev.mitre_technique} : {ev.mitre_tactic}
+              </span>
+            )}
+          </div>
 
           {/* Event */}
           <p className="text-sm text-[#94A3B8] leading-relaxed pl-0">{ev.event}</p>

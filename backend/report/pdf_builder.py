@@ -296,7 +296,12 @@ def build_pdf(job, ai_mode: str = "claude") -> bytes:
         tdata = [[Paragraph("TIME", st["th"]), Paragraph("EVENT", st["th"])]]
         for i, e in enumerate(c.timeline):
             bg = colors.HexColor("#F8FAFC") if i % 2 == 0 else C_WHITE
-            tdata.append([Paragraph(e.time, st["td_mono"]), Paragraph(e.event, st["td"])])
+            
+            event_text = e.event
+            if getattr(e, "mitre_tactic", None) and getattr(e, "mitre_technique", None):
+                event_text += f'<br/><br/><font color="#0891B2" size="7"><b>[{e.mitre_technique}] {e.mitre_tactic.upper()}</b></font>'
+                
+            tdata.append([Paragraph(e.time, st["td_mono"]), Paragraph(event_text, st["td"])])
         tbl = Table(tdata, colWidths=[4*cm, W - 4*cm - 4*cm], repeatRows=1)
         tbl.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), C_PANEL),

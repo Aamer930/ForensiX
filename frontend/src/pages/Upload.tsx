@@ -1,6 +1,6 @@
 import { useState, useCallback, DragEvent, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { uploadFile, uploadSample, getAiMode, setAiMode } from '../lib/api'
+import { uploadFile, uploadSample, getAiMode, setAiMode, getSamples, SampleInfo } from '../lib/api'
 import { usePageTitle } from '../lib/usePageTitle'
 import { useToast } from '../components/Toast'
 
@@ -103,12 +103,20 @@ export default function Upload() {
     if (file) handleFile(file)
   }
 
-  const onLoadSample = async () => {
+  const [samples, setSamples] = useState<SampleInfo[]>([])
+  const [showSamples, setShowSamples] = useState(false)
+
+  useEffect(() => {
+    getSamples().then(r => setSamples(r.samples)).catch(() => {})
+  }, [])
+
+  const onLoadSample = async (name: string = 'cridex.vmem') => {
     setLoading(true)
     setError(null)
+    setShowSamples(false)
     try {
-      toast('Loading demo sample...', 'info')
-      const res = await uploadSample()
+      toast(`Loading ${name}...`, 'info')
+      const res = await uploadSample(name)
       toast('Sample loaded — starting analysis', 'success')
       navigate(`/live/${res.job_id}`)
     } catch (e: unknown) {
@@ -157,6 +165,12 @@ export default function Upload() {
               <path strokeLinecap="round" strokeLinejoin="round"
                 d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
             </svg>
+          </button>
+          <button
+            onClick={() => navigate('/history')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-[#1E293B] hover:border-green-500/50 hover:bg-green-500/5 transition-all duration-200 cursor-pointer"
+          >
+            <span className="text-white">CASE HISTORY</span>
           </button>
         </div>
       </div>
@@ -233,24 +247,77 @@ export default function Upload() {
         <div className="flex-1 h-px bg-[#1E293B]" />
       </div>
 
-      {/* Load sample button */}
-      <button
-        onClick={onLoadSample}
-        disabled={loading}
-        className="mt-5 px-6 py-2.5 rounded-lg font-mono text-sm btn-neon disabled:opacity-40 disabled:cursor-not-allowed fade-in-up-3 focus:outline-none focus:ring-2 focus:ring-green-500/50"
-      >
-        {loading ? (
-          <span className="flex items-center gap-2">
-            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            Initialising...
-          </span>
-        ) : (
-          <>Load Demo Sample <span className="opacity-50 ml-1">cridex.vmem</span></>
+      {/* Load sample button + picker */}
+      <div className="mt-5 w-full max-w-lg fade-in-up-3 relative" style={{ zIndex: 50 }}>
+        {/* Backdrop to close dropdown */}
+        {showSamples && (
+          <div className="fixed inset-0 z-40" onClick={() => setShowSamples(false)} />
         )}
-      </button>
+
+        {/* Sample picker dropdown — opens UPWARD */}
+        {showSamples && !loading && (
+          <div className="absolute left-0 right-0 bottom-full mb-2 rounded-xl border border-[#1E293B] overflow-hidden z-50 max-h-[320px] overflow-y-auto"
+            style={{ background: '#0B1120', boxShadow: '0 -8px 32px rgba(34,197,94,0.08), 0 0 0 1px rgba(30,41,59,0.5)' }}>
+            {samples.map((s) => {
+              const typeColors: Record<string, string> = {
+                memory_dump: 'text-purple-400 border-purple-500/30 bg-purple-500/10',
+                pe_executable: 'text-red-400 border-red-500/30 bg-red-500/10',
+                log_file: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10',
+                disk_image: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
+              }
+              const color = typeColors[s.file_type] || 'text-gray-400 border-gray-500/30 bg-gray-500/10'
+              const sizeStr = s.size > 1024 * 1024
+                ? `${(s.size / (1024 * 1024)).toFixed(1)} MB`
+                : `${(s.size / 1024).toFixed(1)} KB`
+
+              return (
+                <button
+                  key={s.filename}
+                  onClick={() => onLoadSample(s.filename)}
+                  className="w-full px-4 py-3 text-left hover:bg-green-500/5 border-b border-[#1E293B] last:border-b-0 transition-colors duration-150 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-sm text-white group-hover:text-green-400 transition-colors">
+                      {s.filename}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-xs font-mono border ${color}`}>
+                        {s.file_type.replace('_', ' ')}
+                      </span>
+                      <span className="text-xs text-[#475569] font-mono">{sizeStr}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-[#64748B] mt-1">{s.description}</p>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        <button
+          onClick={() => setShowSamples(!showSamples)}
+          disabled={loading}
+          className="w-full px-6 py-2.5 rounded-lg font-mono text-sm btn-neon disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-green-500/50 relative z-50"
+        >
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Analysing...
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-2">
+              Load Demo Sample
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                className={`w-4 h-4 transition-transform duration-200 ${showSamples ? 'rotate-180' : ''}`}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* Error */}
       {error && (

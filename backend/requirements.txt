@@ -7,3 +7,4 @@ yara-python==4.5.1
 reportlab==4.2.2
 pydantic==2.8.2
 aiofiles==24.1.0
+requests

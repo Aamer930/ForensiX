@@ -26,20 +26,20 @@ class ToolOutput(BaseModel):
 
 
 class Finding(BaseModel):
-    finding: str
-    source: str
-    confidence: int  # 0-100
-
+    finding: Optional[str] = "Unknown"
+    source: Optional[str] = "Unknown"
+    confidence: int = 50
 
 class SuspiciousString(BaseModel):
-    value: str
-    reason: str
-    severity: str  # critical | high | medium | low
-
+    value: Optional[str] = "Unknown"
+    reason: Optional[str] = "Unknown"
+    severity: Optional[str] = "low"
 
 class TimelineEvent(BaseModel):
-    time: str
-    event: str
+    time: Optional[str] = "Unknown"
+    event: Optional[str] = "Unknown Event"
+    mitre_tactic: Optional[str] = None
+    mitre_technique: Optional[str] = None
 
 
 class CorrelationResult(BaseModel):
@@ -48,6 +48,8 @@ class CorrelationResult(BaseModel):
     evidence: list[Finding]
     summary: str
     suspicious_strings: list[SuspiciousString] = []
+    risk_score: int = 0  # 0-100, computed from evidence severity
+    mitre_tactics: list[str] = []  # list of triggered MITRE tactic IDs
 
 
 class Job(BaseModel):
