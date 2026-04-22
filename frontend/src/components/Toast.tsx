@@ -1,4 +1,4 @@
-import { useEffect, useState, createContext, useContext, useCallback, ReactNode } from 'react'
+import { useEffect, useState, useRef, createContext, useContext, useCallback, ReactNode } from 'react'
 
 interface ToastItem {
   id: number
@@ -18,10 +18,10 @@ export function useToast() {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
-  let counter = 0
+  const counterRef = useRef(0)
 
   const toast = useCallback((message: string, type: ToastItem['type'] = 'info') => {
-    const id = ++counter
+    const id = ++counterRef.current
     setToasts(prev => [...prev, { id, message, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }, [])

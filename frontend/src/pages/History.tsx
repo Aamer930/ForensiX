@@ -23,7 +23,7 @@ export default function History() {
         </h1>
         <button
           onClick={() => navigate('/')}
-          className="px-4 py-2 rounded-lg border border-[#1E293B] font-mono text-sm text-[#64748B] hover:border-green-500/30 hover:text-white transition-colors"
+          className="px-4 py-2 rounded-lg border border-[#1E293B] font-mono text-sm text-[#64748B] hover:border-green-500/30 hover:text-white transition-colors duration-200 cursor-pointer active:scale-95 active:transition-none"
         >
           ← New Analysis
         </button>

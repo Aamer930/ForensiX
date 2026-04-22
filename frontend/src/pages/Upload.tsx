@@ -168,7 +168,7 @@ export default function Upload() {
           </button>
           <button
             onClick={() => navigate('/history')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-[#1E293B] hover:border-green-500/50 hover:bg-green-500/5 transition-all duration-200 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-[#1E293B] hover:border-green-500/50 hover:bg-green-500/5 transition-colors duration-200 cursor-pointer active:scale-95 active:transition-none"
           >
             <span className="text-white">CASE HISTORY</span>
           </button>
@@ -224,7 +224,7 @@ export default function Upload() {
         </div>
 
         <p className="text-white font-medium mb-1 font-mono">
-          {dragging ? 'Release to analyse' : 'Drop forensic artefact here'}
+          {dragging ? 'Release to analyze' : 'Drop forensic artifact here'}
         </p>
         <p className="text-[#64748B] text-sm">or click to browse</p>
 
@@ -333,13 +333,13 @@ export default function Upload() {
             <p className="text-xl font-bold font-mono neon-text">
               <AnimatedCounter target={s.value} suffix={s.suffix} />
             </p>
-            <p className="text-[#334155] text-xs font-mono mt-0.5">{s.label}</p>
+            <p className="text-[#475569] text-xs font-mono mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* Footer */}
-      <p className="absolute bottom-4 text-[#1E293B] text-xs font-mono">
+      <p className="absolute bottom-4 text-[#334155] text-xs font-mono">
         UNIVERSITY PROJECT — FORENSIX AUTONOMOUS FORENSIC AGENT
       </p>
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TerminalStream, { StreamEvent } from '../components/TerminalStream'
 import { usePageTitle } from '../lib/usePageTitle'
@@ -37,6 +37,8 @@ export default function LiveAgent() {
   const [doneTools, setDoneTools] = useState<Set<string>>(new Set())
   const [loadingLine, setLoadingLine] = useState(0)
   const [showScanner, setShowScanner] = useState(true)
+  const [tick, setTick] = useState(0)
+  const helixPhases = useMemo(() => Array.from({ length: 20 }, (_, i) => i * 0.8), [])
   const wsRef = useRef<WebSocket | null>(null)
   const retriesRef = useRef(0)
   const { toast } = useToast()
@@ -50,6 +52,13 @@ export default function LiveAgent() {
     }, 2000)
     return () => clearInterval(t)
   }, [status])
+
+  // Helix animation tick
+  useEffect(() => {
+    if (!showScanner) return
+    const t = setInterval(() => setTick(prev => prev + 1), 60)
+    return () => clearInterval(t)
+  }, [showScanner])
 
   // Hide scanner once first tool starts
   useEffect(() => {
@@ -131,20 +140,20 @@ export default function LiveAgent() {
             <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-scan-line" />
           </div>
           
-          {/* DNA helix / hex visualization */}
+          {/* DNA helix visualization */}
           <div className="flex items-center justify-center mb-4">
-            <div className="flex gap-1">
-              {Array.from({ length: 20 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="w-1.5 rounded-full bg-green-500/60"
-                  style={{
-                    height: `${12 + Math.sin(i * 0.8 + Date.now() / 300) * 12}px`,
-                    animation: `pulse 1.5s ease-in-out ${i * 0.1}s infinite`,
-                    opacity: 0.3 + Math.random() * 0.7,
-                  }}
-                />
-              ))}
+            <div className="flex gap-1 items-end" style={{ height: 36 }}>
+              {helixPhases.map((phase, i) => {
+                const h = 10 + Math.sin(phase + tick * 0.18) * 10
+                const op = 0.35 + (Math.sin(phase + tick * 0.18) + 1) * 0.3
+                return (
+                  <div
+                    key={i}
+                    className="w-1.5 rounded-full bg-green-500"
+                    style={{ height: `${Math.max(4, h)}px`, opacity: op }}
+                  />
+                )
+              })}
             </div>
           </div>
 
@@ -169,7 +178,7 @@ export default function LiveAgent() {
             const active  = [...activeTools].some(t => t === step || t.startsWith('vol_') && step === 'volatility3')
             return (
               <div key={step} className="flex items-center gap-2 flex-1">
-                <div className={`flex-1 py-2 px-3 rounded-lg border text-center text-xs font-mono transition-all duration-500 ${
+                <div className={`flex-1 py-2 px-3 rounded-lg border text-center text-xs font-mono transition-colors duration-300 ${
                   done    ? 'border-green-500/40 bg-green-500/10 text-green-400'  :
                   active  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400 pulse-glow' :
                             'border-[#1E293B] text-[#334155]'

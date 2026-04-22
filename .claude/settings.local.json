@@ -8,7 +8,17 @@
       "Bash(./node_modules/.bin/vite build *)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Read(//c/Users/pc/.claude/**)",
-      "Read(//c/Users/pc/.claude/projects/**)"
+      "Read(//c/Users/pc/.claude/projects/**)",
+      "Bash(docker compose *)",
+      "Bash(curl -s http://localhost:8000/api/jobs/611f0694-8acf-4acb-a710-b9f466a77f82)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 generate_samples.py)",
+      "Bash(docker cp *)",
+      "Bash(docker exec *)",
+      "Bash(curl -s http://localhost:8000/api/sample)",
+      "Bash(python3 -c \"import json,sys; [print\\(s['name'],'—',s['description']\\) for s in json.load\\(sys.stdin\\)['samples']]\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(npm run *)"
     ]
   }
 }

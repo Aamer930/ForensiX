@@ -14,7 +14,7 @@ import { useToast } from '../components/Toast'
 function SectionHeader({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 mb-4">
-      <span className="text-xs font-mono text-[#334155] uppercase tracking-widest">{label}</span>
+      <span className="text-xs font-mono text-[#64748B] uppercase tracking-widest">{label}</span>
       <div className="flex-1 h-px bg-gradient-to-r from-green-500/30 to-transparent" />
     </div>
   )
@@ -31,7 +31,7 @@ export default function Results() {
   useEffect(() => {
     if (!jobId) return
     getJob(jobId)
-      .then(j => { setJob(j); toast('Analysis results loaded', 'success') })
+      .then(j => setJob(j))
       .catch(e => { setError(e.message); toast(e.message, 'error') })
   }, [jobId])
 
@@ -72,7 +72,7 @@ export default function Results() {
           </button>
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 rounded-lg border border-[#1E293B] font-mono text-sm text-[#64748B] hover:border-green-500/30 hover:text-white transition-colors cursor-pointer"
+            className="px-4 py-2 rounded-lg border border-[#1E293B] font-mono text-sm text-[#64748B] hover:border-green-500/30 hover:text-white transition-colors duration-200 cursor-pointer active:scale-95 active:transition-none"
           >
             ← New
           </button>

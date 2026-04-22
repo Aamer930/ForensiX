@@ -82,10 +82,13 @@ def _guess_sample_type(filename: str) -> str:
 def _sample_description(filename: str) -> str:
     descs = {
         "cridex.vmem": "Cridex banking trojan — Windows XP memory dump with active C2 connections",
+        "memory_infected.vmem": "Infected memory dump — varied entropy regions: kernel, heap, encrypted C2 payload, mimikatz artifacts",
         "suspicious_trojan.exe": "Multi-stage trojan — PE with C2 callbacks, keylogger, credential harvesting",
         "ransomware_demo.exe": "Ransomware sample — file encryption, shadow deletion, BTC ransom note",
+        "packed_malware.exe": "UPX-packed malware — high-entropy packed sections (7.7/8.0), loader stub visible",
         "auth_log_compromised.log": "Compromised server log — SSH brute-force, reverse shell, data exfiltration",
         "webshell_dropper.exe": "Webshell dropper — PHP shell injection, remote code execution, persistence",
+        "webserver_breach.log": "Full breach chain — webshell → privesc (CVE-2021-4034) → lateral movement → ransomware",
     }
     return descs.get(filename, "Forensic artifact")
 

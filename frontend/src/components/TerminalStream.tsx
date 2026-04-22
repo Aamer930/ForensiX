@@ -77,13 +77,13 @@ export default function TerminalStream({ events }: Props) {
         </div>
 
         {events.length === 0 && (
-          <span className="text-[#334155]">Waiting for artefact...<span className="cursor-blink">▌</span></span>
+          <span className="text-[#334155]">Waiting for artifact...<span className="cursor-blink">▌</span></span>
         )}
 
         {events.map((ev, i) => (
           <div key={i} className="flex items-start gap-2 leading-relaxed group">
             {/* Timestamp */}
-            <span className="text-[#1E293B] shrink-0 w-20 group-hover:text-[#334155] transition-colors">
+            <span className="text-[#334155] shrink-0 w-20 group-hover:text-[#475569] transition-colors duration-150">
               {timestamp()}
             </span>
 
