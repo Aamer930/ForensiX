@@ -39,14 +39,39 @@ def _compute_risk_score(
     return min(max(score, 0), 100)
 
 
+# Technique ID prefix → tactic name fallback when LLM omits mitre_tactic
+_TECHNIQUE_TACTIC: dict[str, str] = {
+    "T1595": "Reconnaissance",      "T1592": "Reconnaissance",      "T1589": "Reconnaissance",
+    "T1588": "Resource Development","T1587": "Resource Development", "T1585": "Resource Development",
+    "T1190": "Initial Access",      "T1566": "Initial Access",       "T1133": "Initial Access",      "T1078": "Initial Access",
+    "T1059": "Execution",           "T1204": "Execution",            "T1106": "Execution",            "T1053": "Execution",
+    "T1547": "Persistence",         "T1543": "Persistence",          "T1546": "Persistence",          "T1505": "Persistence",
+    "T1548": "Privilege Escalation","T1134": "Privilege Escalation", "T1068": "Privilege Escalation",
+    "T1027": "Defense Evasion",     "T1070": "Defense Evasion",      "T1055": "Defense Evasion",      "T1036": "Defense Evasion",
+    "T1003": "Credential Access",   "T1110": "Credential Access",    "T1555": "Credential Access",    "T1056": "Credential Access",
+    "T1082": "Discovery",           "T1083": "Discovery",            "T1033": "Discovery",            "T1018": "Discovery",
+    "T1021": "Lateral Movement",    "T1047": "Lateral Movement",     "T1550": "Lateral Movement",
+    "T1005": "Collection",          "T1119": "Collection",           "T1560": "Collection",           "T1074": "Collection",
+    "T1071": "Command and Control", "T1095": "Command and Control",  "T1573": "Command and Control",  "T1105": "Command and Control",
+    "T1041": "Exfiltration",        "T1048": "Exfiltration",         "T1567": "Exfiltration",
+    "T1485": "Impact",              "T1486": "Impact",               "T1489": "Impact",               "T1490": "Impact",
+}
+
+
 def _extract_mitre_tactics(timeline: list[TimelineEvent]) -> list[str]:
-    """Extract unique MITRE tactic names from timeline events."""
+    """Extract unique MITRE tactic names from timeline events.
+    Falls back to technique→tactic mapping when mitre_tactic is absent."""
     tactics = []
-    seen = set()
+    seen: set[str] = set()
     for ev in timeline:
-        if ev.mitre_tactic and ev.mitre_tactic not in seen:
-            seen.add(ev.mitre_tactic)
-            tactics.append(ev.mitre_tactic)
+        tactic = ev.mitre_tactic
+        if not tactic and ev.mitre_technique:
+            # e.g. "T1059.001" → base "T1059" → "Execution"
+            base = ev.mitre_technique.strip().split(".")[0].upper()
+            tactic = _TECHNIQUE_TACTIC.get(base)
+        if tactic and tactic not in seen:
+            seen.add(tactic)
+            tactics.append(tactic)
     return tactics
 _SYSTEM = """You are a senior forensic analyst. Given structured outputs from forensic tools,
 produce a JSON incident report. Be precise and evidence-based.

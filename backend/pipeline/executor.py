@@ -32,7 +32,7 @@ async def execute_pipeline(job_id: str):
         all_outputs = []
         tools_run = set()
         
-        mandatory_tools = ["strings", "yara"]
+        mandatory_tools = ["entropy", "strings", "yara"]
         for tool in mandatory_tools:
             await emit(job_id, WSEvent(type="llm_thinking", message=f"Agent reasoning: {tool} is a mandatory forensic step — must always run to extract baseline indicators."))
             await emit(job_id, WSEvent(type="step_start", tool=tool, message=f"Running {tool}..."))
@@ -127,7 +127,10 @@ async def _run_in_thread(fn, *args):
 
 
 def _execute_tool(tool_name: str, file_path: str):
-    if tool_name == "strings":
+    if tool_name == "entropy":
+        from tools.entropy_tool import run_entropy
+        return run_entropy(file_path)
+    elif tool_name == "strings":
         from tools.strings_tool import run_strings
         return run_strings(file_path)
     elif tool_name == "yara":
@@ -146,6 +149,12 @@ def _execute_tool(tool_name: str, file_path: str):
 
 def _summarize_output(output) -> str:
     d = output.data
+    if output.tool == "entropy":
+        ov = d.get("overall_entropy", 0)
+        cls = d.get("classification", "unknown")
+        hr = d.get("high_entropy_regions", 0)
+        packed = " ⚠ PACKED/ENCRYPTED" if cls in ("packed", "encrypted") else ""
+        return f"Entropy: {ov}/8.0 ({cls}), {hr} high-entropy region(s){packed}"
     if output.tool == "strings":
         ascii_n = d.get("ascii_count", 0)
         unicode_n = d.get("unicode_count", 0)

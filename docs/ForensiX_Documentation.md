@@ -84,8 +84,23 @@ A terminal-style interface on the frontend shows the user exactly what the agent
 **Findings Correlation and Hypothesis Generation**
 After all tools have run, the language model receives the combined structured output and produces an incident timeline, an attack hypothesis in plain English, and a scored evidence table. Confidence scores are assigned using rule-based logic for reliability.
 
+**File Entropy Analysis**
+Every file is analyzed for Shannon entropy before other tools run. The file is split into ~160 equal blocks and the entropy of each block is calculated (0.0–8.0 scale). Results are displayed as a color-coded bar chart with dashed reference lines at 5.0, 6.5, and 7.2. The overall entropy determines a classification: benign (<5.0), compressed (5.0–6.5), packed (6.5–7.2), or encrypted (≥7.2). High-entropy regions that may indicate packed or encrypted payloads are counted separately.
+
+**Threat Risk Score**
+A composite risk score from 0–100 is computed from the correlation results and displayed as an animated radial gauge. The score provides an at-a-glance severity indicator before the user reviews the detailed findings.
+
+**MITRE ATT&CK Heatmap**
+An interactive 14-tactic grid maps observed behaviors to the MITRE ATT&CK framework. Each tactic cell lights up when evidence from the timeline matches that tactic. Tactics can be matched by name, ID (TA0002), or common alias. When a timeline event only has a technique ID (e.g., T1059), the system infers the parent tactic automatically using a built-in lookup table.
+
+**Interactive Threat Graph**
+A physics-based SVG force-directed graph shows relationships between the analysed sample (center), evidence nodes (inner ring), and IOC nodes (outer ring). Nodes settle into stable positions using a custom simulation loop and can be dragged to explore connections. The graph renders via SVG `viewBox` so it scales correctly at any screen size or DPI — including Mac Retina displays.
+
 **Suspicious Strings Analysis**
 After correlation, the AI identifies the most forensically significant strings from the tool outputs — IP addresses, domains, registry keys, API calls, file paths, and commands. Each is flagged with a severity level (Critical, High, Medium, Low) and a plain-English explanation of why it is dangerous. These appear in both the Results page and the PDF report.
+
+**VirusTotal Threat Intelligence**
+After correlation, each suspicious string is checked against the VirusTotal API. If any antivirus engine flags the indicator as malicious, the reason text is updated with the detection count and vendor names, and the severity is automatically escalated to Critical.
 
 **Professional PDF Report**
 A downloadable PDF report is generated on demand with a professional dark-themed design. It includes a branded cover page with the ForensiX logo and case metadata, executive summary, attack hypothesis, incident timeline, evidence table with visual confidence bars, suspicious strings table with color-coded severity, and a tool output appendix.
@@ -109,13 +124,14 @@ The following steps describe the complete flow from upload to report:
 2. The backend receives the file and assigns it a unique job ID.
 3. The file type is detected using magic byte analysis.
 4. If the file type is unsupported, the pipeline stops and returns a clear error to the user.
-5. A quick strings extraction is run to collect a sample for the AI to reason over.
-6. The AI agent (Claude or Ollama) receives the file type and strings sample and returns an ordered list of tools to run.
-7. The agent executes each tool in sequence. Each result is normalized into a structured JSON format and emitted as a real-time event over WebSocket.
-8. Once all tools have completed, the AI agent receives the combined output and produces the correlation report: timeline, hypothesis, and evidence.
+5. Three mandatory tools always run first: **entropy** (Shannon entropy analysis), **strings** (text extraction), and **YARA** (signature matching).
+6. The AI agent (Claude or Ollama) receives the file type and tool results so far, then decides whether to run additional tools (Volatility3, binwalk) — up to 3 more steps.
+7. Each tool result is normalized into structured JSON and emitted as a real-time WebSocket event.
+8. Once all tools have completed, the AI agent receives the combined output and produces the full correlation: risk score, MITRE tactics, timeline, hypothesis, evidence list, suspicious strings, and executive summary.
 9. A rule-based confidence scorer annotates each evidence item with a reliability score.
-10. The results are stored in the job state and made available through the results page.
-11. The user can view the full results and download a PDF report.
+10. Each suspicious string is checked against the VirusTotal API; malicious detections escalate severity to critical.
+11. The results are stored in the job state and made available through the results page.
+12. The user can view all nine results sections and download a PDF report.
 
 ---
 
@@ -136,6 +152,9 @@ This two-call architecture keeps the AI's role focused and predictable — one d
 ---
 
 ## 9. Tools and Their Role
+
+**entropy**
+Calculates the Shannon entropy of every file as a mandatory first step. The file is divided into approximately 160 equal-size blocks (minimum 256 bytes each). Each block's entropy is computed on a 0.0–8.0 scale, where 8.0 represents completely random data. The tool returns the per-block entropy array, the overall file entropy, a classification (benign / compressed / packed / encrypted), a count of high-entropy regions (blocks ≥ 7.0), and the file size. This data feeds the entropy bar chart on the Results page and helps the correlating AI flag files that may contain packed or encrypted payloads.
 
 **strings**
 Extracts human-readable text strings from a binary file. Used to identify domain names, IP addresses, file paths, registry keys, command strings, and other indicators of compromise embedded in the artefact. Output is filtered, deduplicated, and capped before being passed to the AI.
@@ -254,12 +273,17 @@ Each stage is a separate module with a single responsibility. The AI is involved
     └── Pipeline (background task)
             ├── ToolSelector    ←── AI (Call 1)
             ├── ToolExecutor
-            │     ├── strings
-            │     ├── YARA
-            │     ├── Volatility3
-            │     └── binwalk
+            │     ├── entropy   (mandatory)
+            │     ├── strings   (mandatory)
+            │     ├── YARA      (mandatory)
+            │     ├── Volatility3 (AI-decided)
+            │     └── binwalk   (AI-decided)
             ├── Correlator      ←── AI (Call 2)
+            │     └── produces: risk_score, mitre_tactics,
+            │                   timeline, hypothesis, evidence,
+            │                   suspicious_strings, summary
             ├── ConfidenceScorer
+            ├── VirusTotalClient (IOC enrichment)
             └── PDFBuilder (on demand)
 ```
 
@@ -274,7 +298,19 @@ The entry point to the application. Contains a drag-and-drop upload zone that ac
 Displays a terminal-style interface that streams the agent's activity in real time. Each event is color-coded: yellow for a tool starting, green for success, red for errors, and blue for AI reasoning steps. A progress bar shows how many tools have completed. An active tool indicator shows which tool is currently running. If the analysis completes successfully, the user is automatically redirected to the results page.
 
 **Results Page**
-Displays the full analysis output in four sections: the attack hypothesis card, the incident timeline, the evidence table with confidence badges, and a tool execution summary grid. A "Download PDF" button links to the report page. A "New Analysis" button returns to the upload page.
+Displays the full analysis output in nine sections:
+
+1. **Threat Risk Score** — animated radial gauge (0–100) beside the attack hypothesis
+2. **File Entropy Analysis** — color-coded SVG bar chart of per-block entropy with classification badge and stat cards
+3. **MITRE ATT&CK Coverage** — interactive 14-tactic heatmap; tactic cells highlight on evidence match
+4. **Executive Summary** — AI-generated one-paragraph overview
+5. **Incident Timeline** — chronological list of events extracted from tool outputs
+6. **Interactive Threat Graph** — physics-based force graph linking sample → evidence → IOC nodes; drag to explore
+7. **Evidence Table** — all findings with source tool and confidence percentage
+8. **Suspicious Strings** — up to 10 IOC strings with severity badges (critical/high/medium/low) and VirusTotal annotation
+9. **Tool Execution Grid** — per-tool success/failure status cards
+
+An "Export PDF" button generates the downloadable report. A "← New" button returns to the upload page.
 
 **Report Page**
 Embeds the generated PDF report in an inline preview. A download button allows the user to save the report locally. The PDF is generated on demand when this page is first loaded.
@@ -308,14 +344,21 @@ Files that cannot be classified into a supported type are rejected at the file t
 
 After all tools have completed, the agent receives a combined, capped version of all tool outputs in a single structured prompt. The cap limits ensure the total token usage remains reasonable and prevents large tool outputs from degrading the AI's reasoning quality.
 
-The AI is asked to produce four outputs simultaneously:
+The AI is asked to produce seven outputs simultaneously:
 
-- **Timeline**: a list of events ordered chronologically, each with a timestamp (or "Unknown" if no timestamp is available) and a plain-English description of what happened.
-- **Hypothesis**: a 2–4 sentence paragraph explaining the most likely attack scenario based on the combined evidence.
-- **Evidence list**: individual findings, each tagged with the source tool that produced it.
-- **Summary**: a single paragraph suitable for an executive audience.
+- **Risk score**: an integer 0–100 representing the composite threat level
+- **MITRE tactics**: a list of MITRE ATT&CK tactic names observed across the timeline
+- **Timeline**: a list of events ordered chronologically, each with a timestamp (or "Unknown" if no timestamp is available), a plain-English description, and optional MITRE tactic/technique fields
+- **Hypothesis**: a 2–4 sentence paragraph explaining the most likely attack scenario based on the combined evidence
+- **Evidence list**: individual findings, each tagged with the source tool that produced it
+- **Summary**: a single paragraph suitable for an executive audience
+- **Suspicious strings**: up to 10 IOC strings each with `value`, `severity` (critical/high/medium/low), and `reason`
 
-Confidence scores are not generated by the AI. Instead, a rule-based scorer in `pipeline/confidence.py` applies fixed score ranges based on the evidence source and type. For example, a YARA rule match receives a score of 90%, an external network connection detected by Volatility3 receives 80%, and a suspicious process name receives 75%. This approach is more reliable and consistent than asking the AI to invent percentages.
+Confidence scores are not generated by the AI. Instead, a rule-based scorer in `pipeline/confidence.py` applies fixed score ranges based on the evidence source and type. For example, a YARA rule match receives a score of 90%, an external network connection detected by Volatility3 receives 80%, and a suspicious process name receives 75%.
+
+After correlation, each suspicious string is sent to the VirusTotal API. If any engine flags it as malicious, the reason text is enriched with the detection count and top vendor names, and the severity is overridden to "critical". This step is optional — if no `VT_API_KEY` is configured the step is silently skipped.
+
+MITRE tactic extraction has a fallback layer: when the AI returns a timeline event with `mitre_tactic: null` but a valid `mitre_technique` (e.g., `T1059`), both the backend and frontend apply a built-in technique→tactic lookup table to infer the parent tactic. This ensures the heatmap fills correctly even when local models omit the tactic field.
 
 ---
 
@@ -414,7 +457,7 @@ Job results are stored in application memory and are lost when the backend resta
 ## 20. Future Improvements
 
 **Persistent Storage**
-Replace in-memory job state with a Redis or SQLite backend so jobs survive server restarts and can be queried historically.
+A lightweight SQLite backend (`db.py`) is used to save completed cases to disk. Full Redis or database-backed job management with query history and case browsing is a planned extension.
 
 **Additional Forensic Tools**
 Integrate tools such as `exiftool` for metadata extraction, `foremost` for file carving, `Autopsy` for disk image analysis, or `Suricata` for PCAP analysis. Each new tool would be added as an independent module following the existing wrapper pattern.
@@ -448,6 +491,16 @@ The system is intentionally modular and extensible. New forensic tools can be ad
 
 ---
 
-*Document Version: 1.0*
+*Document Version: 2.0*
 *Project: ForensiX — Autonomous Forensic Agent*
 *Type: University Project Documentation*
+
+---
+
+**Team:** Ahmed Aamer · Youssef Hazem · Mohamed Ahmed · Ali Hesham
+
+**Supervisor:** Dr. Mohamed Hamhme
+
+**Institution:** Arab Academy for Science, Technology and Maritime Transport
+
+**Faculty / Major:** Computer Science — Cyber Security

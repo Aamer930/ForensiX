@@ -6,6 +6,7 @@ import EvidenceTable from '../components/EvidenceTable'
 import ThreatGraph from '../components/ThreatGraph'
 import ThreatRiskScore from '../components/ThreatRiskScore'
 import MitreHeatmap from '../components/MitreHeatmap'
+import EntropyChart from '../components/EntropyChart'
 import ResultsSkeleton from '../components/ResultsSkeleton'
 import { usePageTitle } from '../lib/usePageTitle'
 import { useToast } from '../components/Toast'
@@ -96,6 +97,12 @@ export default function Results() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* File Entropy */}
+      <section className="mb-6 fade-in-up-1">
+        <SectionHeader label="File Entropy Analysis" />
+        <EntropyChart toolOutputs={job.tool_outputs} />
       </section>
 
       {/* MITRE ATT&CK Heatmap */}

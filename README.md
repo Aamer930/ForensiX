@@ -43,14 +43,19 @@ The system is built for cybersecurity students, researchers, and analysts who wa
 |---------|-------------|
 | **Artefact Type Detection** | Automatically classifies uploads using magic byte analysis |
 | **Autonomous Tool Selection** | AI decides which forensic tools to run based on artefact type |
-| **Multi-Tool Execution** | Runs strings, YARA, Volatility3, and binwalk sequentially |
+| **Multi-Tool Execution** | Runs entropy, strings, YARA, Volatility3, and binwalk sequentially |
+| **File Entropy Analysis** | Shannon entropy bar chart across 160 blocks with classification (benign/compressed/packed/encrypted) |
 | **Live Agent Stream** | Terminal-style real-time feed of every agent action over WebSocket |
 | **Findings Correlation** | AI cross-references all tool outputs to build the full picture |
+| **Threat Risk Score** | Animated gauge showing composite risk level (0–100) |
+| **MITRE ATT&CK Heatmap** | Interactive grid showing which of the 14 MITRE tactics were observed |
+| **Interactive Threat Graph** | Physics-based SVG force graph linking the sample to evidence nodes and IOC nodes — drag to explore |
 | **Incident Timeline** | Chronological sequence of events extracted from evidence |
 | **Attack Hypothesis** | Plain-English explanation of what likely happened |
 | **Evidence Table** | Findings with source tool and rule-based confidence scores |
 | **Suspicious Strings Analysis** | AI flags the most dangerous strings with severity and explanation |
-| **PDF Report Export** | Professionally designed report with dark cover, logo, confidence bars |
+| **VirusTotal Integration** | IOC strings checked against VirusTotal; malicious detections elevate severity to critical |
+| **PDF Report Export** | Professionally designed report with dark cover, logo, confidence bars, suspicious strings table |
 | **Live AI Mode Toggle** | Switch between Claude API and Ollama from the UI — no restart needed |
 | **Dual AI Backend** | Claude API auto-fallback to Ollama when no API key is set |
 | **Demo Sample Included** | Bundled `cridex.vmem` memory image with real malware artefacts |
@@ -138,11 +143,12 @@ docker compose up --build
   ┌─────────────────────────────────────────────────────┐
   │                  Tool Executor                       │
   │                                                      │
-  │  strings ──► YARA ──► Volatility3 ──► binwalk       │
-  │     │           │           │              │         │
-  │  filter      rule        pslist +      carved        │
-  │  + cap       matches     netscan +     files         │
-  │              + meta      cmdline                     │
+  │  entropy ──► strings ──► YARA ──► Volatility3       │
+  │     │            │          │           │            │
+  │  blocks +     filter     rule        pslist +        │
+  │  entropy      + cap      matches     netscan +       │
+  │  classify                + meta      cmdline         │
+  │                                      ──► binwalk     │
   └──────────────────────────┬──────────────────────────┘
                              │  All outputs (normalized JSON)
                              ▼
@@ -154,13 +160,19 @@ docker compose up --build
          ▼
   ┌──────────────────────────────────────┐
   │  Correlation Result                   │
+  │  ├── Risk Score (0–100)               │
+  │  ├── MITRE ATT&CK Tactics             │
   │  ├── Incident Timeline                │
   │  ├── Attack Hypothesis                │
   │  ├── Evidence Table + Confidence      │
+  │  ├── Suspicious Strings (severity)    │
   │  └── Executive Summary               │
-  └──────────────────────────────────────┘
-         │
-         ▼
+  └──────────────────┬───────────────────┘
+                     │
+                     ▼
+  VirusTotal API check on IOC strings
+                     │
+                     ▼
   PDF Report  +  Results Page  +  Live Stream (WebSocket)
 ```
 
@@ -224,6 +236,7 @@ All tools run inside Docker. Nothing needs to be installed on your host machine.
 
 | Tool | Purpose | Artefact Types |
 |------|---------|----------------|
+| **entropy** | Shannon entropy analysis — classify file as benign, compressed, packed, or encrypted | All types |
 | **strings** | Extract readable text: IPs, URLs, paths, commands | All types |
 | **YARA** | Malware signature detection against 8+ rule families | All types |
 | **Volatility3** | Memory forensics: processes, network, command lines | Memory dumps |
@@ -304,6 +317,7 @@ forensix/
 │   │   └── confidence.py       # Rule-based confidence scoring
 │   │
 │   ├── tools/
+│   │   ├── entropy_tool.py     # Shannon entropy analysis (block-level + overall)
 │   │   ├── strings_tool.py     # strings wrapper
 │   │   ├── yara_tool.py        # YARA wrapper
 │   │   ├── volatility_tool.py  # Volatility3 wrapper (4 modules)
@@ -331,7 +345,11 @@ forensix/
 │   │   │   ├── TerminalStream.tsx
 │   │   │   ├── Timeline.tsx
 │   │   │   ├── EvidenceTable.tsx
-│   │   │   └── ConfidenceBadge.tsx
+│   │   │   ├── ConfidenceBadge.tsx
+│   │   │   ├── EntropyChart.tsx      # SVG entropy bar chart
+│   │   │   ├── ThreatGraph.tsx       # Physics-based SVG force graph
+│   │   │   ├── MitreHeatmap.tsx      # MITRE ATT&CK 14-tactic grid
+│   │   │   └── ThreatRiskScore.tsx   # Animated risk gauge
 │   │   │
 │   │   └── lib/
 │   │       └── api.ts          # API client
@@ -358,10 +376,11 @@ All configuration is done through the `.env` file.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `AI_MODE` | Yes | `claude` | AI backend to use: `claude` or `ollama` |
+| `AI_MODE` | Yes | `ollama` | AI backend to use: `claude` or `ollama` |
 | `ANTHROPIC_API_KEY` | If `AI_MODE=claude` | — | Your Anthropic API key |
 | `OLLAMA_BASE_URL` | If `AI_MODE=ollama` | `http://host.docker.internal:11434` | Ollama server URL |
 | `OLLAMA_MODEL` | If `AI_MODE=ollama` | `llama3.2` | Model name to use |
+| `VT_API_KEY` | No | — | VirusTotal API key for IOC enrichment (optional) |
 
 ---
 
@@ -374,7 +393,10 @@ The backend exposes a REST API at `http://localhost:8000`. Interactive docs avai
 | `POST` | `/api/upload` | Upload a forensic artefact |
 | `POST` | `/api/upload-sample` | Run analysis on the bundled demo sample |
 | `GET` | `/api/jobs/{job_id}` | Get job status and results |
-| `GET` | `/api/jobs/{job_id}/report` | Download PDF report |
+| `GET` | `/api/jobs/{job_id}/report` | Download PDF report (attachment) |
+| `GET` | `/api/jobs/{job_id}/report/preview` | PDF inline preview for browser |
+| `GET` | `/api/ai-mode` | Get current AI backend |
+| `POST` | `/api/ai-mode` | Switch AI backend live `{"mode": "claude"\|"ollama"}` |
 | `GET` | `/api/sample` | Get demo sample metadata |
 | `WS` | `/ws/{job_id}` | WebSocket stream for live events |
 | `GET` | `/health` | Health check |
@@ -435,9 +457,14 @@ The Vite dev server proxies `/api` and `/ws` requests to `localhost:8000` automa
 
 ## 🗺 Roadmap
 
-- [ ] Ollama backend integration *(in progress)*
+- [x] Ollama backend integration — live UI toggle, no restart needed
+- [x] File entropy analysis with block-level bar chart
+- [x] MITRE ATT&CK tactic heatmap (14 tactics, technique→tactic fallback)
+- [x] Interactive physics-based threat graph (drag to explore)
+- [x] VirusTotal IOC enrichment — malicious detections escalate severity to critical
+- [x] Threat risk score gauge (0–100)
 - [ ] LangGraph-based branching agent (conditional tool chains)
-- [ ] Persistent job storage with Redis
+- [ ] Persistent job storage with Redis / SQLite
 - [ ] Multi-artefact case management
 - [ ] Custom YARA rule upload via UI
 - [ ] Streaming AI token output in terminal
@@ -450,10 +477,11 @@ The Vite dev server proxies `/api` and `/ws` requests to `localhost:8000` automa
 
 Contributions are welcome. To add a new forensic tool:
 
-1. Create `backend/tools/yourtool_tool.py` following the existing wrapper pattern
-2. Return a `ToolOutput` model with `tool`, `success`, `data`, and optional `error`
-3. Register the tool name in `pipeline/executor.py::_execute_tool()`
-4. Update the tool selection prompt in `pipeline/selector.py`
+1. Create `backend/tools/yourtool_tool.py` — return a `ToolOutput` Pydantic model with `tool`, `success`, `data`, and optional `error`
+2. Register it in `pipeline/executor.py::_execute_tool()` with a new `elif tool_name == "yourtool":` branch
+3. Add a summary case in `pipeline/executor.py::_summarize_output()`
+4. Update the tool selection prompt in `pipeline/selector.py` so the AI knows the tool exists
+5. If the tool should always run, add its name to `mandatory_tools` in `executor.py`; otherwise the AI agent decides dynamically
 
 To add YARA rules, drop `.yar` files into `backend/yara_rules/` — they are auto-loaded at startup.
 
@@ -480,5 +508,11 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 Built as a university cybersecurity project.
 
 **ForensiX** — *Autonomous Forensic Agent*
+
+**Team:** Ahmed Aamer · Youssef Hazem · Mohamed Ahmed · Ali Hesham
+
+*Under the supervision of Dr. Mohamed Hamhme*
+
+[Arab Academy for Science, Technology and Maritime Transport](https://aast.edu) · Computer Science — Cyber Security
 
 </div>
