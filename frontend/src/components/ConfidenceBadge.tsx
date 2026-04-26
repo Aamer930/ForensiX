@@ -12,7 +12,7 @@ export default function ConfidenceBadge({ value }: Props) {
 
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border font-mono text-xs ${color}`}>
-      <span className="w-12 h-1 rounded-full bg-[#1E293B] overflow-hidden">
+      <span className="w-12 h-1 rounded-full bg-gray-200 dark:bg-[#1E293B] overflow-hidden">
         <span className="block h-full rounded-full" style={{ width: `${value}%`, background: barColor }} />
       </span>
       {value}%

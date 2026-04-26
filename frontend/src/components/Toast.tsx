@@ -26,6 +26,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }, [])
 
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      toast((ev as CustomEvent<string>).detail, 'error')
+    }
+    window.addEventListener('forensix:error', handler)
+    return () => window.removeEventListener('forensix:error', handler)
+  }, [toast])
+
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}

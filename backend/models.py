@@ -15,6 +15,8 @@ class FileType(str, Enum):
     pe_executable = "pe_executable"
     log_file = "log_file"
     disk_image = "disk_image"
+    pcap_capture = "pcap_capture"
+    windows_eventlog = "windows_eventlog"
     unknown = "unknown"
 
 

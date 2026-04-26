@@ -1,4 +1,5 @@
 import { useMemo, useRef, useEffect, useState } from 'react'
+import { useTheme } from '../lib/useTheme'
 
 // ── Fixed virtual coordinate space used by the SVG viewBox ──────────────
 const VW = 800
@@ -58,6 +59,8 @@ export default function ThreatGraph({ suspiciousStrings, evidence }: Props) {
   const animRef  = useRef<number>()
   const dragRef  = useRef<{ id: string; ox: number; oy: number } | null>(null)
   const coolRef  = useRef(0)
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
 
   // ── Build links (stable unless props change) ─────────────────────────────
   const links = useMemo(() => {
@@ -171,18 +174,18 @@ export default function ThreatGraph({ suspiciousStrings, evidence }: Props) {
 
   return (
     <div
-      className="w-full bg-[#020617] rounded-xl border border-[#1E293B] overflow-hidden relative select-none"
+      className="w-full rounded-xl border border-gray-200 dark:border-[#1E293B] overflow-hidden relative select-none bg-gray-100 dark:bg-[#020617]"
       style={{ height: 420 }}
     >
       {/* Overlay labels */}
-      <div className="absolute top-2.5 left-3 text-[10px] font-mono text-[#334155] z-10 pointer-events-none uppercase tracking-widest">
+      <div className="absolute top-2.5 left-3 text-[10px] font-mono text-gray-400 dark:text-[#475569] z-10 pointer-events-none uppercase tracking-widest">
         Interactive Threat Graph · Drag to Explore
       </div>
       <div className="absolute top-2.5 right-3 flex items-center gap-3 z-10 pointer-events-none">
         {([['#22d3ee', 'Sample'], ['#a855f7', 'Evidence'], ['#f97316', 'IOCs']] as const).map(([c, l]) => (
           <div key={l} className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full" style={{ background: c }} />
-            <span className="text-[9px] font-mono text-[#475569]">{l}</span>
+            <span className="text-[9px] font-mono text-gray-400 dark:text-[#475569]">{l}</span>
           </div>
         ))}
       </div>
@@ -308,12 +311,12 @@ export default function ThreatGraph({ suspiciousStrings, evidence }: Props) {
           return (
             <g style={{ pointerEvents: 'none' }}>
               <rect x={tx} y={ty} width={150} height={40} rx={5}
-                fill="#020617" fillOpacity={0.97} stroke={bc} strokeWidth={0.5} strokeOpacity={0.45}
+                fill={isDark ? '#020617' : '#f8fafc'} fillOpacity={0.97} stroke={bc} strokeWidth={0.5} strokeOpacity={0.45}
               />
               <text x={tx + 8} y={ty + 14} fontSize={7.5} fontFamily="monospace" fill={lc} fontWeight="bold">
                 {tag}
               </text>
-              <text x={tx + 8} y={ty + 27} fontSize={8} fontFamily="monospace" fill="#94a3b8">
+              <text x={tx + 8} y={ty + 27} fontSize={8} fontFamily="monospace" fill={isDark ? '#94a3b8' : '#4b5563'}>
                 {hNode.label.length > 20 ? hNode.label.slice(0, 19) + '…' : hNode.label}
               </text>
             </g>

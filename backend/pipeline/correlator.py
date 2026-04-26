@@ -93,7 +93,7 @@ Rules:
 - hypotheses: rank from most to least likely. Confidence values must sum to <= 100.
 - For suspicious_strings: pick up to 10 forensically significant strings (IPs, domains, registry keys, commands).
 - Severity: critical=C2/exploit/rootkit, high=persistence/lateral-movement, medium=recon/staging, low=informational.
-- For timeline events: include mitre_tactic, mitre_technique, AND tool_source for EVERY event. Do NOT use null.
+- For timeline events: mitre_tactic and mitre_technique are REQUIRED for every event. NEVER use null, NEVER omit them. Pick the closest ATT&CK tactic (e.g. "Execution", "Persistence", "Defense Evasion", "Discovery", "Command and Control") and technique (e.g. "T1059", "T1547", "T1027"). If unsure, use "Discovery" / "T1082".
 - You MUST return valid JSON. No trailing commas. Escape quotes in strings with backslash.
 - Do NOT wrap the JSON in an array. Return a single JSON object starting with { and ending with }."""
 
@@ -116,6 +116,21 @@ def _cap_output(output: ToolOutput) -> dict:
         return {"tool": "vol_imageinfo", "banners": data.get("banners", [])}
     if output.tool == "binwalk":
         return {"tool": "binwalk", "carved": data.get("carved", [])[:20]}
+    if output.tool == "pcap":
+        return {
+            "tool": "pcap",
+            "dns_queries": data.get("dns_queries", [])[:30],
+            "http_requests": data.get("http_requests", [])[:20],
+            "top_ips": data.get("top_ips", [])[:15],
+        }
+    if output.tool == "evtx":
+        return {
+            "tool": "evtx",
+            "events": data.get("events", [])[:50],
+            "top_event_ids": data.get("top_event_ids", []),
+            "event_count": data.get("event_count", 0),
+            "total_records_scanned": data.get("total_records_scanned", 0),
+        }
     return {"tool": output.tool, "data": str(data)[:300]}
 
 
@@ -125,10 +140,16 @@ def _repair_json(text: str) -> str:
     text = re.sub(r'[\x00-\x1f\x7f]', ' ', text)
     # Remove trailing commas before } or ]
     text = re.sub(r',\s*([}\]])', r'\1', text)
-    # Replace single quotes with double quotes (crude but helps)
-    # Only if there are no double-quoted strings already
+    # Replace single quotes with double quotes only when no double quotes present
     if text.count("'") > text.count('"'):
         text = text.replace("'", '"')
+    # Close unclosed braces/brackets (handles LLM output truncated at token limit)
+    opens = text.count('{') - text.count('}')
+    closes = text.count('[') - text.count(']')
+    # Strip trailing comma before we close
+    text = re.sub(r',\s*$', '', text.rstrip())
+    if opens > 0 or closes > 0:
+        text = text + (']' * max(closes, 0)) + ('}' * max(opens, 0))
     return text
 
 
@@ -531,6 +552,72 @@ def _build_deterministic_report(tool_outputs: list[ToolOutput]) -> CorrelationRe
         risk_score=_compute_risk_score(evidence, final_suspicious, final_timeline, len(yara_matches)),
         mitre_tactics=_extract_mitre_tactics(final_timeline),
     )
+
+
+def recorrelate_with_timeline(tool_outputs: list[ToolOutput], edited_timeline: list) -> CorrelationResult:
+    """Re-run correlation using a user-edited timeline. The timeline is fixed; LLM regenerates everything else."""
+    # Build timeline context string for the LLM
+    timeline_text = "\n".join(
+        f"[{ev.time}] {ev.event}"
+        + (f" [{ev.mitre_technique} / {ev.mitre_tactic}]" if ev.mitre_technique else "")
+        for ev in edited_timeline
+    )
+
+    capped = [_cap_output(o) for o in tool_outputs]
+    tool_summary = "\n".join(
+        f"[{o['tool']}] {str(o)[:400]}"
+        for o in capped
+    )
+
+    system = """You are a senior forensic analyst. Given tool outputs and a FIXED analyst-edited timeline,
+regenerate the incident hypotheses, evidence, summary, and suspicious strings.
+The timeline is already correct — do not change it.
+Return ONLY valid JSON with this schema:
+{
+  "hypothesis": "<primary hypothesis string>",
+  "hypotheses": [{"label": "...", "description": "...", "confidence": 0-100}, ...],
+  "evidence": [{"finding": "...", "source": "...", "confidence": 0-100}, ...],
+  "summary": "<1-2 paragraph executive summary>",
+  "suspicious_strings": [{"value": "...", "reason": "...", "severity": "critical|high|medium|low"}, ...]
+}"""
+
+    user_msg = f"""Tool outputs:
+{tool_summary}
+
+Analyst-edited timeline (fixed, do not modify):
+{timeline_text}
+
+Generate updated hypotheses, evidence, summary, and suspicious strings based on this timeline."""
+
+    try:
+        from models import Hypothesis as _Hypothesis
+        text = llm_client.call(system, user_msg, max_tokens=3000)
+        data = _parse_response(text)
+
+        hypotheses = [_Hypothesis(**h) for h in data.get("hypotheses", [])]
+        evidence = [Finding(**e) for e in data.get("evidence", [])]
+        suspicious_strings = [SuspiciousString(**s) for s in data.get("suspicious_strings", [])]
+        mitre_tactics = _extract_mitre_tactics(edited_timeline)
+        risk_score = _compute_risk_score(evidence, suspicious_strings, edited_timeline)
+
+        return CorrelationResult(
+            timeline=edited_timeline,
+            hypothesis=data.get("hypothesis", ""),
+            hypotheses=hypotheses,
+            evidence=evidence,
+            summary=data.get("summary", ""),
+            suspicious_strings=suspicious_strings,
+            risk_score=risk_score,
+            mitre_tactics=mitre_tactics,
+        )
+    except Exception as e:
+        print(f"[recorrelate] LLM call failed: {e}. Falling back to original correlate + timeline replacement.")
+        # Fallback: just replace timeline in original correlation
+        result = correlate(tool_outputs)
+        result.timeline = edited_timeline
+        result.mitre_tactics = _extract_mitre_tactics(edited_timeline)
+        result.risk_score = _compute_risk_score(result.evidence, result.suspicious_strings, edited_timeline)
+        return result
 
 
 def correlate(tool_outputs: list[ToolOutput]) -> CorrelationResult:

@@ -1,5 +1,7 @@
 import asyncio
+import logging
 import os
+import traceback
 from models import JobStatus, WSEvent, FileType, AgentReasoningStep
 from job_store import get_job, update_job, emit
 from pipeline.selector import get_next_tool
@@ -7,6 +9,8 @@ from pipeline.correlator import correlate
 from pipeline.confidence import score_findings
 from pipeline.llm_client import active_mode
 import db
+
+logger = logging.getLogger(__name__)
 
 MAX_AGENT_STEPS = 9   # entropy (mandatory) + up to 9 agent decisions = max 10 LLM calls
 
@@ -35,20 +39,36 @@ async def execute_pipeline(job_id: str):
         all_outputs = []
         tools_run = set()
 
-        # Entropy is always mandatory first — no LLM call consumed
-        await _emit_reason(job_id, job, step=0, chosen_tool="entropy",
-                           reasoning="Entropy analysis is always the first step — reveals packing, encryption, and compression before any other tool runs.",
-                           findings="No prior findings.")
-        await emit(job_id, WSEvent(type="step_start", tool="entropy", message="Running entropy analysis..."))
-        outputs = await _run_in_thread(_execute_tool, "entropy", job.file_path)
+        # Mandatory first tool: pcap for captures, evtx for Windows event logs, entropy for everything else
+        first_tool = (
+            "pcap" if job.file_type == FileType.pcap_capture
+            else "evtx" if job.file_type == FileType.windows_eventlog
+            else "entropy"
+        )
+        if first_tool == "pcap":
+            first_reason = "PCAP capture detected. Network traffic analysis reveals DNS, HTTP, and IP communication patterns."
+            first_msg = "Analyzing network traffic..."
+        elif first_tool == "evtx":
+            first_reason = "Windows Event Log detected. Parsing high-signal Event IDs (4688, 4624, 7045, etc.) for process creation, logon events, and persistence indicators."
+            first_msg = "Parsing Windows Event Log..."
+        else:
+            first_reason = "Entropy analysis is always the first step — reveals packing, encryption, and compression before any other tool runs."
+            first_msg = "Running entropy analysis..."
+
+        logger.info("[%s] Starting pipeline — file_type=%s first_tool=%s", job_id[:8], job.file_type, first_tool)
+        await _emit_reason(job_id, job, step=0, chosen_tool=first_tool, reasoning=first_reason, findings="No prior findings.")
+        await emit(job_id, WSEvent(type="step_start", tool=first_tool, message=first_msg))
+        outputs = await _run_in_thread(_execute_tool, first_tool, job.file_path)
         outputs = outputs if isinstance(outputs, list) else [outputs]
         for output in outputs:
             if output.success:
+                logger.info("[%s] Tool %s succeeded", job_id[:8], output.tool)
                 await emit(job_id, WSEvent(type="step_done", tool=output.tool, message=_summarize_output(output)))
             else:
+                logger.warning("[%s] Tool %s failed: %s", job_id[:8], output.tool, output.error)
                 await emit(job_id, WSEvent(type="step_error", tool=output.tool, message=f"{output.tool} failed: {output.error}"))
             all_outputs.append(output)
-        tools_run.add("entropy")
+        tools_run.add(first_tool)
 
         # Iterative agent loop — agent decides every subsequent tool
         for step in range(1, MAX_AGENT_STEPS + 1):
@@ -64,7 +84,7 @@ async def execute_pipeline(job_id: str):
                 await emit(job_id, WSEvent(type="llm_thinking", message=f"Agent concluded: {reasoning}"))
                 break
 
-            if next_tool not in {"strings", "yara", "volatility3", "binwalk"}:
+            if next_tool not in {"strings", "yara", "volatility3", "binwalk", "pcap", "evtx"}:
                 break
 
             base_tool = "volatility3" if next_tool.startswith("vol_") else next_tool
@@ -122,6 +142,7 @@ async def execute_pipeline(job_id: str):
         await emit(job.job_id, WSEvent(type="complete", message="Analysis complete."))
 
     except Exception as e:
+        logger.error("Pipeline failed for job %s: %s\n%s", job_id, e, traceback.format_exc())
         job.status = JobStatus.failed
         job.error = str(e)
         update_job(job)
@@ -177,6 +198,12 @@ def _execute_tool(tool_name: str, file_path: str):
     elif tool_name == "binwalk":
         from tools.binwalk_tool import run_binwalk
         return run_binwalk(file_path)
+    elif tool_name == "pcap":
+        from tools.pcap_tool import run_pcap
+        return run_pcap(file_path)
+    elif tool_name == "evtx":
+        from tools.evtx_tool import run_evtx
+        return run_evtx(file_path)
     else:
         from models import ToolOutput
         return ToolOutput(tool=tool_name, success=False, data={}, error="Unknown tool")
@@ -213,6 +240,15 @@ def _summarize_output(output) -> str:
         ent = d.get("entropy", {})
         packed = " [PACKED/ENCRYPTED]" if ent.get("packed") else ""
         return f"binwalk: {len(d.get('carved', []))} embedded files, entropy={ent.get('avg_entropy', '?')}{packed}"
+    if output.tool == "pcap":
+        dns_n = d.get("dns_count", 0)
+        http_n = d.get("http_count", 0)
+        ips_n = d.get("unique_ips", 0)
+        return f"PCAP: {dns_n} DNS queries, {http_n} HTTP requests, {ips_n} unique IPs"
+    if output.tool == "evtx":
+        n = d.get("event_count", 0)
+        total = d.get("total_records_scanned", 0)
+        return f"EVTX: {n} high-signal events from {total} total records"
     return f"{output.tool} completed"
 
 

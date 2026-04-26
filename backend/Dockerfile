@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic-dev \
     binwalk \
     git \
+    tshark \
+    wireshark-common \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

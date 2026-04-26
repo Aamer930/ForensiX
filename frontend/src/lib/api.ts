@@ -113,3 +113,15 @@ export async function setAiMode(mode: 'claude' | 'ollama'): Promise<{ mode: stri
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
+
+export type TimelineEvent = Correlation['timeline'][number]
+
+export async function recorrelateJob(jobId: string, timeline: TimelineEvent[]): Promise<{ correlation: Job['correlation'] }> {
+  const res = await fetch(`${BASE}/jobs/${jobId}/recorrelate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ timeline }),
+  })
+  if (!res.ok) throw new Error(`Re-correlate failed: ${res.statusText}`)
+  return res.json()
+}

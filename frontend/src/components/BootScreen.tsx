@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const BOOT_LINES = [
-  { text: 'FORENSIX OS v1.0.0 — Autonomous Forensic Agent', delay: 0,    color: 'text-green-400' },
+  { text: 'FORENSIX OS v4.0 — Autonomous Forensic Agent', delay: 0,    color: 'text-green-400' },
   { text: 'Copyright (c) 2025 ForensiX Systems. All rights reserved.', delay: 120,  color: 'text-[#475569]' },
   { text: '', delay: 250, color: '' },
   { text: 'Initialising hardware subsystems...', delay: 380,  color: 'text-[#64748B]' },

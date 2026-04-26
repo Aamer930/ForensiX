@@ -93,7 +93,7 @@ export default function MitreHeatmap({ tactics, timeline }: Props) {
   const triggeredCount = tacticData.filter(t => t.triggered).length
 
   return (
-    <div className="p-5 rounded-xl border border-[#1E293B]" style={{ background: 'rgba(15,23,42,0.6)' }}>
+    <div className="p-5 rounded-xl border border-gray-200 dark:border-[#1E293B] bg-gray-50 dark:bg-[#0F172A]/60">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -101,12 +101,12 @@ export default function MitreHeatmap({ tactics, timeline }: Props) {
             <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="text-xs font-mono text-[#64748B] uppercase tracking-wider">MITRE ATT&CK Coverage</span>
+          <span className="text-xs font-mono text-gray-500 dark:text-[#64748B] uppercase tracking-wider">MITRE ATT&CK Coverage</span>
         </div>
         <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
           triggeredCount > 0
             ? 'border-red-500/30 bg-red-500/10 text-red-400'
-            : 'border-[#1E293B] bg-[#0B1120] text-[#475569]'
+            : 'border-gray-200 dark:border-[#1E293B] bg-gray-100 dark:bg-[#0B1120] text-gray-400 dark:text-[#475569]'
         }`}>
           {triggeredCount} / {ALL_TACTICS.length} tactics
         </span>
@@ -129,17 +129,17 @@ export default function MitreHeatmap({ tactics, timeline }: Props) {
                 className={`relative p-2 rounded-lg border text-center transition-all duration-500 group cursor-default ${
                   tactic.triggered
                     ? 'border-red-500/40 bg-red-500/10'
-                    : 'border-[#1E293B] bg-[#0B1120]'
+                    : 'border-gray-200 dark:border-[#1E293B] bg-gray-100 dark:bg-[#0B1120]'
                 }`}
                 style={tactic.triggered ? { boxShadow: '0 0 12px rgba(239,68,68,0.15)' } : {}}
               >
                 <p className={`text-[10px] font-mono font-bold leading-tight ${
-                  tactic.triggered ? 'text-red-400' : 'text-[#334155]'
+                  tactic.triggered ? 'text-red-400' : 'text-gray-400 dark:text-[#475569]'
                 }`}>
                   {tactic.short}
                 </p>
                 <p className={`text-[9px] font-mono mt-0.5 ${
-                  tactic.triggered ? 'text-red-500/60' : 'text-[#1E293B]'
+                  tactic.triggered ? 'text-red-500/60' : 'text-gray-400 dark:text-[#1E293B]'
                 }`}>
                   {tactic.id}
                 </p>
@@ -158,7 +158,7 @@ export default function MitreHeatmap({ tactics, timeline }: Props) {
 
                 {tactic.triggered && (
                   <div
-                    className={`absolute bottom-full ${tooltipPos} mb-2 px-3 py-2 rounded-lg border border-red-500/30 bg-[#0B1120] text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 w-40`}
+                    className={`absolute bottom-full ${tooltipPos} mb-2 px-3 py-2 rounded-lg border border-red-500/30 bg-white dark:bg-[#0B1120] text-left opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 w-40`}
                     style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}
                   >
                     <p className="text-[10px] font-mono text-red-400 font-bold mb-1">{tactic.name}</p>
@@ -167,7 +167,7 @@ export default function MitreHeatmap({ tactics, timeline }: Props) {
                         <p key={i} className="text-[10px] font-mono text-[#94A3B8] truncate">{t}</p>
                       ))
                     ) : (
-                      <p className="text-[10px] font-mono text-[#475569]">Detected via analysis</p>
+                      <p className="text-[10px] font-mono text-gray-400 dark:text-[#475569]">Detected via analysis</p>
                     )}
                   </div>
                 )}
@@ -179,20 +179,20 @@ export default function MitreHeatmap({ tactics, timeline }: Props) {
 
       {/* Empty state hint */}
       {triggeredCount === 0 && (
-        <p className="text-center text-[10px] font-mono text-[#334155] mt-3">
+        <p className="text-center text-[10px] font-mono text-gray-400 dark:text-[#475569] mt-3">
           No MITRE tactics detected — analysis may be incomplete or sample is benign
         </p>
       )}
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[#1E293B]">
+      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-200 dark:border-[#1E293B]">
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded border border-red-500/40 bg-red-500/10" />
-          <span className="text-[10px] font-mono text-[#64748B]">Triggered</span>
+          <span className="text-[10px] font-mono text-gray-500 dark:text-[#64748B]">Triggered</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded border border-[#1E293B] bg-[#0B1120]" />
-          <span className="text-[10px] font-mono text-[#64748B]">Not Observed</span>
+          <span className="w-3 h-3 rounded border border-gray-200 dark:border-[#1E293B] bg-gray-100 dark:bg-[#0B1120]" />
+          <span className="text-[10px] font-mono text-gray-500 dark:text-[#64748B]">Not Observed</span>
         </div>
       </div>
     </div>

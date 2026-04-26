@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import TerminalStream, { StreamEvent } from '../components/TerminalStream'
+import ThemeToggle from '../components/ThemeToggle'
 import { usePageTitle } from '../lib/usePageTitle'
 import { useToast } from '../components/Toast'
 
@@ -41,6 +42,7 @@ export default function LiveAgent() {
   const helixPhases = useMemo(() => Array.from({ length: 20 }, (_, i) => i * 0.8), [])
   const wsRef = useRef<WebSocket | null>(null)
   const retriesRef = useRef(0)
+  const doneRef = useRef(false)
   const { toast } = useToast()
   usePageTitle('Live Agent')
 
@@ -93,6 +95,7 @@ export default function LiveAgent() {
         setActiveTools(prev => { const s = new Set(prev); s.delete(ev.tool!); return s })
       }
       if (ev.type === 'complete') {
+        doneRef.current = true
         setStatus('complete')
         toast('Analysis complete — loading results', 'success')
         setTimeout(() => navigate(`/results/${jobId}`), 1500)
@@ -104,7 +107,7 @@ export default function LiveAgent() {
     }
 
     ws.onclose = () => {
-      if (status !== 'complete' && retriesRef.current < 5) {
+      if (!doneRef.current && retriesRef.current < 5) {
         retriesRef.current++
         setTimeout(connect, Math.min(1000 * 2 ** retriesRef.current, 10000))
       }
@@ -116,25 +119,28 @@ export default function LiveAgent() {
   const progress   = totalTools > 0 ? Math.round((doneCount / totalTools) * 100) : 0
 
   return (
-    <div className="scanlines min-h-screen grid-bg px-4 py-6 max-w-3xl mx-auto">
+    <div className="scanlines min-h-screen grid-bg px-4 py-6 max-w-3xl mx-auto bg-white dark:bg-[#020617] text-gray-900 dark:text-white">
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6 fade-in-up">
         <div>
           <h1 className="text-2xl font-bold font-mono">
-            <span className="neon-text">Forens</span><span className="text-white">iX</span>
-            <span className="text-[#334155] ml-3 text-base font-normal">Agent</span>
+            <span className="neon-text">Forens</span><span className="text-gray-900 dark:text-white">iX</span>
+            <span className="text-gray-400 dark:text-[#475569] ml-3 text-base font-normal">Agent</span>
           </h1>
-          <p className="text-xs font-mono text-[#334155] mt-0.5">
-            JOB/<span className="text-[#475569]">{jobId?.slice(0, 12)}...</span>
+          <p className="text-xs font-mono text-gray-500 dark:text-[#475569] mt-0.5">
+            JOB/<span className="text-gray-500 dark:text-[#475569]">{jobId?.slice(0, 12)}...</span>
           </p>
         </div>
-        <StatusBadge status={status} />
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <StatusBadge status={status} />
+        </div>
       </div>
 
       {/* Animated scanner effect during initialization */}
       {showScanner && (
-        <div className="mb-5 p-6 rounded-xl border border-[#1E293B] bg-[#0F172A] fade-in-up overflow-hidden relative">
+        <div className="mb-5 p-6 rounded-xl border border-gray-200 dark:border-[#1E293B] bg-gray-50 dark:bg-[#0F172A] fade-in-up overflow-hidden relative">
           {/* Scanning line animation */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-scan-line" />
@@ -163,15 +169,15 @@ export default function LiveAgent() {
             {LOADING_LINES[loadingLine]}
             <span className="cursor-blink ml-0.5">_</span>
           </p>
-          <p className="text-center text-xs font-mono text-[#334155] mt-2">
-            ForensiX Autonomous Agent v1.0 — Preparing analysis environment
+          <p className="text-center text-xs font-mono text-gray-400 dark:text-[#475569] mt-2">
+            ForensiX Autonomous Agent v4 — Preparing analysis environment
           </p>
         </div>
       )}
 
       {/* Tool pipeline tracker */}
-      <div className="mb-5 p-4 rounded-xl border border-[#1E293B] bg-[#0F172A] fade-in-up-1">
-        <p className="text-xs font-mono text-[#334155] mb-3">PIPELINE</p>
+      <div className="mb-5 p-4 rounded-xl border border-gray-200 dark:border-[#1E293B] bg-gray-50 dark:bg-[#0F172A] fade-in-up-1">
+        <p className="text-xs font-mono text-gray-500 dark:text-[#475569] mb-3">PIPELINE</p>
         <div className="flex items-center gap-2">
           {STEPS.map((step, i) => {
             const done    = doneTools.has(step)
@@ -181,7 +187,7 @@ export default function LiveAgent() {
                 <div className={`flex-1 py-2 px-3 rounded-lg border text-center text-xs font-mono transition-colors duration-300 ${
                   done    ? 'border-green-500/40 bg-green-500/10 text-green-400'  :
                   active  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400 pulse-glow' :
-                            'border-[#1E293B] text-[#334155]'
+                            'border-gray-200 dark:border-[#1E293B] text-gray-400 dark:text-[#475569]'
                 }`}>
                   {done ? '✓ ' : active ? '► ' : `${i + 1}. `}
                   {TOOL_LABELS[step] ?? step}
@@ -202,11 +208,11 @@ export default function LiveAgent() {
       {/* Progress bar */}
       {totalTools > 0 && (
         <div className="mb-4 fade-in-up-1">
-          <div className="flex justify-between text-xs font-mono text-[#334155] mb-1.5">
+          <div className="flex justify-between text-xs font-mono text-gray-500 dark:text-[#475569] mb-1.5">
             <span>PROGRESS</span>
             <span className="text-green-500">{progress}%</span>
           </div>
-          <div className="h-1.5 bg-[#0F172A] rounded-full overflow-hidden border border-[#1E293B]">
+          <div className="h-1.5 bg-gray-100 dark:bg-[#0F172A] rounded-full overflow-hidden border border-gray-200 dark:border-[#1E293B]">
             <div
               className="h-full rounded-full transition-all duration-700 relative"
               style={{
@@ -248,7 +254,7 @@ export default function LiveAgent() {
         <div className="mt-4 flex gap-3 fade-in-up">
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 rounded-lg border border-[#1E293B] font-mono text-sm text-white hover:border-green-500/40 transition-colors cursor-pointer"
+            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-[#1E293B] font-mono text-sm text-gray-900 dark:text-white hover:border-green-500/40 transition-colors cursor-pointer"
           >
             ← Upload another file
           </button>

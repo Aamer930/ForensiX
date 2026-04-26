@@ -52,12 +52,12 @@ function ReasonRow({ ev }: { ev: StreamEvent }) {
   const data = ev.data as { step?: number; chosen_tool?: string; reasoning?: string; findings_so_far?: string } | undefined
 
   return (
-    <div className="flex flex-col border-l-2 border-purple-500/20 pl-2 my-1">
+    <div className="flex flex-col my-1 rounded bg-purple-500/5 px-2 py-1">
       <div
         className="flex items-start gap-2 leading-relaxed cursor-pointer group"
         onClick={() => setExpanded(v => !v)}
       >
-        <span className="text-[#334155] shrink-0 w-20 text-[10px] pt-0.5">{timestamp(ev.ts)}</span>
+        <span className="text-gray-400 dark:text-[#475569] shrink-0 w-20 text-[10px] pt-0.5">{timestamp(ev.ts)}</span>
         <span className={`shrink-0 px-1 rounded text-[10px] font-bold border ${BADGE_STYLE['llm_reason']}`}>
           THINK
         </span>
@@ -69,10 +69,10 @@ function ReasonRow({ ev }: { ev: StreamEvent }) {
               : data.reasoning
             : ev.message}
         </span>
-        <span className="text-[#334155] text-[10px] shrink-0 group-hover:text-[#475569]">{expanded ? '▲' : '▼'}</span>
+        <span className="text-gray-400 dark:text-[#475569] text-[10px] shrink-0 group-hover:text-gray-600 dark:group-hover:text-[#64748B]">{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && data?.findings_so_far && data.findings_so_far !== 'No findings yet.' && (
-        <div className="text-[10px] font-mono text-[#334155] pb-1 pt-0.5" style={{ marginLeft: '88px' }}>
+        <div className="text-[10px] font-mono text-gray-400 dark:text-[#475569] pb-1 pt-0.5" style={{ marginLeft: '88px' }}>
           ↳ {data.findings_so_far.slice(0, 200)}
         </div>
       )}
@@ -88,32 +88,31 @@ export default function TerminalStream({ events }: Props) {
   }, [events])
 
   return (
-    <div className="relative rounded-xl overflow-hidden border border-[#1E293B]"
-      style={{ background: 'rgba(2,6,23,0.95)' }}>
+    <div className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#1E293B] bg-gray-50 dark:bg-[#020617]">
 
       {/* Title bar */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#1E293B] bg-[#0F172A]">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 dark:border-[#1E293B] bg-gray-100 dark:bg-[#0F172A]">
         <span className="w-3 h-3 rounded-full bg-red-500/70" />
         <span className="w-3 h-3 rounded-full bg-yellow-500/70" />
         <span className="w-3 h-3 rounded-full bg-green-500/70" />
-        <span className="ml-3 text-xs font-mono text-[#334155]">forensix-agent — iterative mode</span>
+        <span className="ml-3 text-xs font-mono text-gray-400 dark:text-[#475569]">forensix-agent — iterative mode</span>
         <div className="ml-auto flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 pulse-glow" />
-          <span className="text-xs font-mono text-[#334155]">LIVE</span>
+          <span className="text-xs font-mono text-gray-400 dark:text-[#475569]">LIVE</span>
         </div>
       </div>
 
       {/* Output */}
-      <div className="font-mono text-xs p-4 h-80 overflow-y-auto space-y-0.5">
-        <div className="text-[#334155] mb-2">
+      <div className="font-mono text-xs p-4 h-80 overflow-y-auto space-y-0.5 bg-white dark:bg-[#020617]/95">
+        <div className="text-gray-400 dark:text-[#475569] mb-2">
           <span className="text-green-500">forensix</span>
-          <span className="text-[#475569]">@agent</span>
-          <span className="text-white">:~$</span>
-          <span className="text-[#64748B] ml-2">./forensix-agent --mode=iterative --max-steps=10</span>
+          <span className="text-gray-400 dark:text-[#475569]">@agent</span>
+          <span className="text-gray-900 dark:text-white">:~$</span>
+          <span className="text-gray-500 dark:text-[#64748B] ml-2">./forensix-agent --mode=iterative --max-steps=10</span>
         </div>
 
         {events.length === 0 && (
-          <span className="text-[#334155]">Waiting for artifact...<span className="cursor-blink">▌</span></span>
+          <span className="text-gray-400 dark:text-[#475569]">Waiting for artifact...<span className="cursor-blink">▌</span></span>
         )}
 
         {events.map((ev, i) => {
@@ -122,10 +121,10 @@ export default function TerminalStream({ events }: Props) {
           }
           return (
             <div key={i} className="flex items-start gap-2 leading-relaxed group">
-              <span className="text-[#334155] shrink-0 w-20 group-hover:text-[#475569] transition-colors duration-150 text-[10px] pt-0.5">
+              <span className="text-gray-400 dark:text-[#475569] shrink-0 w-20 group-hover:text-gray-600 dark:group-hover:text-[#64748B] transition-colors duration-150 text-[10px] pt-0.5">
                 {timestamp(ev.ts)}
               </span>
-              <span className={`shrink-0 px-1 rounded text-[10px] font-bold border ${BADGE_STYLE[ev.type] ?? 'border-[#1E293B] text-[#475569]'}`}>
+              <span className={`shrink-0 px-1 rounded text-[10px] font-bold border ${BADGE_STYLE[ev.type] ?? 'border-gray-200 dark:border-[#1E293B] text-gray-400 dark:text-[#475569]'}`}>
                 {TYPE_LABEL[ev.type] ?? 'INFO'}
               </span>
               {ev.tool && <span className="shrink-0 text-purple-400 text-[11px]">[{ev.tool}]</span>}
@@ -139,7 +138,7 @@ export default function TerminalStream({ events }: Props) {
         {events.length > 0 &&
           events[events.length - 1].type !== 'complete' &&
           events[events.length - 1].type !== 'error' && (
-            <div className="flex items-center gap-2 text-[#334155]">
+            <div className="flex items-center gap-2 text-gray-400 dark:text-[#475569]">
               <span className="w-20" />
               <span className="cursor-blink">▌</span>
             </div>

@@ -7,6 +7,22 @@
   --neon: #22C55E;
   --neon-dim: rgba(34, 197, 94, 0.15);
   --neon-glow: 0 0 10px #22C55E, 0 0 30px rgba(34, 197, 94, 0.4);
+  /* Light mode defaults */
+  --bg-primary: #ffffff;
+  --bg-surface: #f8fafc;
+  --text-primary: #111827;
+  /* Legacy vars default to light values; .dark overrides below */
+  --bg: #ffffff;
+  --surface: #f8fafc;
+  --surface2: #f1f5f9;
+  --border: #e2e8f0;
+  --text: #111827;
+  --muted: #64748B;
+}
+.dark {
+  --bg-primary: #020617;
+  --bg-surface: #0F172A;
+  --text-primary: #f8fafc;
   --bg: #020617;
   --surface: #0F172A;
   --surface2: #1E293B;
@@ -227,6 +243,15 @@ body {
 }
 .animate-shimmer {
   animation: shimmer 2s linear infinite;
+}
+
+/* ── Drawer slide-in ─────────────────────────────────── */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.slide-in-right {
+  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ── Reduce motion ─────────────────────────────────── */

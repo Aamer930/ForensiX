@@ -8,3 +8,4 @@ reportlab==4.2.2
 pydantic==2.8.2
 aiofiles==24.1.0
 requests
+python-evtx==0.7.4

@@ -1,12 +1,12 @@
 function SkeletonBar({ w = 'w-full', h = 'h-3' }: { w?: string; h?: string }) {
   return (
-    <div className={`${w} ${h} rounded bg-[#1E293B] animate-pulse`} />
+    <div className={`${w} ${h} rounded bg-gray-200 dark:bg-[#1E293B] animate-pulse`} />
   )
 }
 
 export default function ResultsSkeleton() {
   return (
-    <div className="scanlines min-h-screen grid-bg px-4 py-8 max-w-4xl mx-auto">
+    <div className="scanlines min-h-screen grid-bg px-4 py-8 max-w-4xl mx-auto bg-white dark:bg-[#020617]">
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div className="space-y-2">
@@ -20,7 +20,7 @@ export default function ResultsSkeleton() {
       </div>
 
       {/* Hypothesis */}
-      <div className="mb-6 p-5 rounded-xl border border-[#1E293B] bg-[#0F172A] space-y-2">
+      <div className="mb-6 p-5 rounded-xl border border-gray-200 dark:border-[#1E293B] bg-gray-50 dark:bg-[#0F172A] space-y-2">
         <SkeletonBar w="w-32" h="h-2" />
         <div className="space-y-1.5 mt-3">
           <SkeletonBar />
@@ -30,7 +30,7 @@ export default function ResultsSkeleton() {
       </div>
 
       {/* Timeline */}
-      <div className="mb-6 p-5 rounded-xl border border-[#1E293B] bg-[#0F172A]">
+      <div className="mb-6 p-5 rounded-xl border border-gray-200 dark:border-[#1E293B] bg-gray-50 dark:bg-[#0F172A]">
         <SkeletonBar w="w-32" h="h-2" />
         <div className="mt-4 space-y-4 pl-8">
           {[1,2,3].map(i => (
@@ -43,12 +43,12 @@ export default function ResultsSkeleton() {
       </div>
 
       {/* Evidence table */}
-      <div className="mb-6 rounded-xl border border-[#1E293B] overflow-hidden">
-        <div className="p-3 bg-[#0F172A] border-b border-[#1E293B]">
+      <div className="mb-6 rounded-xl border border-gray-200 dark:border-[#1E293B] overflow-hidden">
+        <div className="p-3 bg-gray-50 dark:bg-[#0F172A] border-b border-gray-200 dark:border-[#1E293B]">
           <SkeletonBar w="w-32" h="h-2" />
         </div>
         {[1,2,3,4].map(i => (
-          <div key={i} className="flex gap-4 px-4 py-3 border-b border-[#0F172A]">
+          <div key={i} className="flex gap-4 px-4 py-3 border-b border-gray-100 dark:border-[#0F172A]">
             <SkeletonBar w="w-full" />
             <SkeletonBar w="w-24" />
             <SkeletonBar w="w-16" />
@@ -59,7 +59,7 @@ export default function ResultsSkeleton() {
       {/* Tool grid */}
       <div className="grid grid-cols-4 gap-3">
         {[1,2,3,4].map(i => (
-          <div key={i} className="p-4 rounded-xl border border-[#1E293B] space-y-2">
+          <div key={i} className="p-4 rounded-xl border border-gray-200 dark:border-[#1E293B] space-y-2">
             <SkeletonBar w="w-16" h="h-2" />
             <SkeletonBar w="w-12" h="h-3" />
           </div>

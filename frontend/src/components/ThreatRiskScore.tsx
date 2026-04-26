@@ -38,8 +38,7 @@ export default function ThreatRiskScore({ score }: Props) {
   const color = getColor(animatedScore)
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 rounded-xl border border-[#1E293B]"
-      style={{ background: 'rgba(15,23,42,0.8)' }}>
+    <div className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-200 dark:border-[#1E293B] bg-gray-50 dark:bg-[#0F172A]/80">
       <div className="relative" style={{ width: 180, height: 180 }}>
         {/* Background glow */}
         <div className="absolute inset-0 rounded-full"
@@ -48,7 +47,7 @@ export default function ThreatRiskScore({ score }: Props) {
         <svg width="180" height="180" className="transform -rotate-90">
           {/* Track */}
           <circle cx="90" cy="90" r={radius} fill="none"
-            stroke="#1E293B" strokeWidth={stroke} />
+            stroke="currentColor" strokeWidth={stroke} className="text-gray-300 dark:text-[#1E293B]" />
           {/* Progress */}
           <circle cx="90" cy="90" r={radius} fill="none"
             stroke={color.main}
@@ -68,7 +67,7 @@ export default function ThreatRiskScore({ score }: Props) {
           <span className="text-4xl font-bold font-mono" style={{ color: color.main }}>
             {animatedScore}
           </span>
-          <span className="text-xs font-mono text-[#64748B] mt-1">/ 100</span>
+          <span className="text-xs font-mono text-gray-400 dark:text-[#64748B] mt-1">/ 100</span>
         </div>
       </div>
 
@@ -79,7 +78,7 @@ export default function ThreatRiskScore({ score }: Props) {
           {color.label} RISK
         </span>
       </div>
-      <p className="text-xs text-[#475569] font-mono mt-1">Threat Assessment Score</p>
+      <p className="text-xs text-gray-400 dark:text-[#475569] font-mono mt-1">Threat Assessment Score</p>
     </div>
   )
 }

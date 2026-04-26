@@ -1,10 +1,20 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
+from pydantic import BaseModel as PydanticBaseModel
 import os
+import logging
+import traceback
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("forensix")
 
 from routers import upload, ws
-from job_store import get_job
+from job_store import get_job, update_job
 from models import JobStatus
 from report.pdf_builder import build_pdf
 from pipeline.health import check_ai_backend
@@ -12,6 +22,17 @@ from pipeline import llm_client
 import db
 
 app = FastAPI(title="ForensiX", version="1.0.0")
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    logger.error("Unhandled exception on %s %s\n%s", request.method, request.url.path, tb)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {type(exc).__name__}: {exc}"},
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,12 +46,12 @@ app.include_router(ws.router)
 
 @app.on_event("startup")
 async def startup():
-    print("\n" + "="*50)
-    print("  ForensiX — Autonomous Forensic Agent v1.0")
-    print("="*50)
+    logger.info("="*50)
+    logger.info("  ForensiX — Autonomous Forensic Agent v1.0")
+    logger.info("="*50)
     db.init_db()
     check_ai_backend()
-    print("="*50 + "\n")
+    logger.info("Startup complete")
 
 @app.get("/api/history")
 async def get_history():
@@ -89,6 +110,30 @@ async def preview_report(job_id: str):
 @app.get("/health")
 async def health():
     return {"status": "ok", "ai_mode": llm_client.get_mode()}
+
+
+class RecorrelateRequest(PydanticBaseModel):
+    timeline: list[dict]
+
+
+@app.post("/api/jobs/{job_id}/recorrelate")
+async def recorrelate_job(job_id: str, body: RecorrelateRequest):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.status != JobStatus.complete:
+        raise HTTPException(400, "Job not complete yet")
+
+    from pipeline.correlator import recorrelate_with_timeline
+    from pipeline.confidence import score_findings
+    from models import TimelineEvent
+
+    edited_timeline = [TimelineEvent(**ev) for ev in body.timeline]
+    new_correlation = recorrelate_with_timeline(job.tool_outputs, edited_timeline)
+    new_correlation.evidence = score_findings(new_correlation.evidence, job.tool_outputs)
+    job.correlation = new_correlation
+    update_job(job)
+    return {"status": "ok", "correlation": new_correlation.model_dump()}
 
 
 @app.get("/api/ai-mode")

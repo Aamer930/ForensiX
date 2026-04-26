@@ -27,7 +27,13 @@
       "Bash(kill %1)",
       "Bash(curl -s http://localhost:8000/health)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('job_id:', d.get\\('job_id'\\)\\)\")",
-      "Bash(curl -s \"http://localhost:8000/api/jobs/f5cdfd61-f6b4-4c5a-a2ae-821c5df618d3\")"
+      "Bash(curl -s \"http://localhost:8000/api/jobs/f5cdfd61-f6b4-4c5a-a2ae-821c5df618d3\")",
+      "Bash(python -m py_compile main.py pipeline/executor.py pipeline/selector.py pipeline/correlator.py pipeline/router.py tools/pcap_tool.py tools/evtx_tool.py models.py)",
+      "Bash(python -c ' *)",
+      "Bash(echo \"TSC_EXIT:$?\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(node \"C:\\\\Users\\\\pc\\\\.claude\\\\plugins\\\\cache\\\\impeccable\\\\impeccable\\\\2.1.1\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\cleanup-deprecated.mjs\")",
+      "Bash(echo \"EXISTS:$?\")"
     ]
   }
 }
