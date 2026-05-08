@@ -33,7 +33,11 @@
       "Bash(echo \"TSC_EXIT:$?\")",
       "Bash(echo \"EXIT:$?\")",
       "Bash(node \"C:\\\\Users\\\\pc\\\\.claude\\\\plugins\\\\cache\\\\impeccable\\\\impeccable\\\\2.1.1\\\\.claude\\\\skills\\\\impeccable\\\\scripts\\\\cleanup-deprecated.mjs\")",
-      "Bash(echo \"EXISTS:$?\")"
+      "Bash(echo \"EXISTS:$?\")",
+      "Bash(python3 -c \"from PIL import ImageFont; f = ImageFont.truetype\\('/System/Library/Fonts/Menlo.ttc', 20\\); print\\('Menlo ok'\\)\")",
+      "Read(//System/Library/Fonts/**)",
+      "Bash(python3)",
+      "Bash(curl -s http://localhost:8000/api/jobs/bf246b8a-650e-45c9-ba59-d11ddc54f7f2)"
     ]
   }
 }

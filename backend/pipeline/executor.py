@@ -25,9 +25,14 @@ async def execute_pipeline(job_id: str):
 
     try:
         if job.file_type == FileType.unknown:
-            await emit(job_id, WSEvent(type="error", message="Unsupported file type. Cannot analyze."))
+            msg = (
+                "Unsupported file type. "
+                "If this is a MalwareBazaar download, extract the ZIP first "
+                "(password: 'infected') and upload the extracted .exe / .dll file."
+            )
+            await emit(job_id, WSEvent(type="error", message=msg))
             job.status = JobStatus.failed
-            job.error = "Unsupported file type"
+            job.error = msg
             update_job(job)
             return
 

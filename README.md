@@ -41,7 +41,7 @@ The system is built for cybersecurity students, researchers, and analysts who wa
 
 | Feature | Description |
 |---------|-------------|
-| **Artefact Type Detection** | Automatically classifies uploads using magic byte analysis (memory, PE, PCAP, EVTX, log, disk image) |
+| **Artefact Type Detection** | Classifies uploads via MZ header, magic bytes, MIME type, and extension fallback (memory, PE, PCAP, EVTX, log, disk image). Handles all PE MIME variants including `application/vnd.microsoft.portable-executable`. |
 | **Iterative Agent Loop** | AI decides each tool step-by-step (up to 10 LLM calls); never hardcoded |
 | **File-Type-Aware Tool Routing** | Selector only offers tools valid for the detected artefact type — no wasted agent steps |
 | **Agent Reasoning Log** | Every AI decision logged with reasoning — visible live in the terminal and in Results |
@@ -439,7 +439,7 @@ The backend exposes a REST API at `http://localhost:8000`. Interactive docs avai
 { "type": "step_done",    "tool": "yara",  "message": "YARA: 3 rule matches found" }
 { "type": "step_error",   "tool": "yara",  "message": "YARA scan timeout" }
 { "type": "complete",     "message": "Analysis complete." }
-{ "type": "error",        "message": "Unsupported file type." }
+{ "type": "error",        "message": "Unsupported file type. If this is a MalwareBazaar download, extract the ZIP first (password: 'infected') and upload the extracted .exe / .dll file." }
 ```
 
 ---
@@ -476,7 +476,8 @@ The Vite dev server proxies `/api` and `/ws` requests to `localhost:8000` automa
 
 - ForensiX runs forensic tools on uploaded user files. **Do not expose it to the public internet.**
 - Designed for local use, controlled lab environments, and demos only.
-- Upload size is capped at 500MB per file.
+- Upload size capped at 500MB per file (nginx + backend both enforce this).
+- MalwareBazaar samples ship as password-protected ZIPs — extract first (password: `infected`), then upload the `.exe` / `.dll`.
 - All processing happens inside Docker containers.
 - Job state lives in application memory (lost on restart) + SQLite (history persists).
 
