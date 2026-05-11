@@ -5,9 +5,12 @@ Both return the same interface: call(system, user, max_tokens) -> str
 """
 
 import json
+import logging
 import os
 import urllib.request
 import urllib.error
+
+logger = logging.getLogger(__name__)
 
 _ai_mode = os.environ.get("AI_MODE", "claude").lower()
 
@@ -34,8 +37,10 @@ def call(system: str, user: str, max_tokens: int = 2048) -> str:
 def _call_claude(system: str, user: str, max_tokens: int) -> str:
     key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not key or not key.startswith("sk-"):
-        # No valid key — silently fall back to Ollama
-        return _call_ollama(system, user, max_tokens)
+        raise RuntimeError(
+            "Claude API key missing or invalid. "
+            "Set ANTHROPIC_API_KEY in your .env file."
+        )
     import anthropic
     client = anthropic.Anthropic(api_key=key)
     try:
@@ -45,10 +50,20 @@ def _call_claude(system: str, user: str, max_tokens: int) -> str:
             system=system,
             messages=[{"role": "user", "content": user}],
         )
+        logger.info("[llm_client] Claude call succeeded (%d tokens used)", response.usage.input_tokens + response.usage.output_tokens)
         return response.content[0].text.strip()
-    except Exception as e:
-        print(f"[llm_client] Claude API error: {e}. Falling back to Ollama.")
-        return _call_ollama(system, user, max_tokens)
+    except anthropic.AuthenticationError as e:
+        raise RuntimeError(f"Claude auth failed — API key is invalid or expired. ({e})") from e
+    except anthropic.RateLimitError as e:
+        raise RuntimeError(f"Claude rate limit hit — too many requests. Try again later. ({e})") from e
+    except anthropic.APIConnectionError as e:
+        raise RuntimeError(f"Claude unreachable — network error. Check your internet connection. ({e})") from e
+    except anthropic.APITimeoutError as e:
+        raise RuntimeError(f"Claude request timed out. ({e})") from e
+    except anthropic.BadRequestError as e:
+        raise RuntimeError(f"Claude rejected the request — bad input. ({e})") from e
+    except anthropic.APIStatusError as e:
+        raise RuntimeError(f"Claude API error {e.status_code}: {e.message}") from e
 
 
 # ── Ollama ────────────────────────────────────────────────────────────────────
@@ -87,4 +102,4 @@ def _call_ollama(system: str, user: str, max_tokens: int) -> str:
 
 
 def active_mode() -> str:
-    return f"ollama/{_OLLAMA_MODEL}" if _ai_mode == "ollama" else "claude/claude-3.5-sonnet"
+    return f"ollama/{_OLLAMA_MODEL}" if _ai_mode == "ollama" else "claude/claude-sonnet-4-6"

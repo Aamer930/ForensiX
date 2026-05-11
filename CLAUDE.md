@@ -10,7 +10,7 @@ ForensiX is a university project — an autonomous forensic analysis agent. User
 
 **Full stack (Docker — recommended):**
 ```bash
-# Edit .env — set ANTHROPIC_API_KEY if using Claude mode (defaults to ollama)
+# Edit .env — set ANTHROPIC_API_KEY (defaults to claude mode)
 docker compose up --build
 # Frontend: http://localhost:3000
 # Backend:  http://localhost:8000
@@ -46,7 +46,7 @@ Upload → FileTypeRouter (python-magic)
 
 **Backend** (`backend/`) — FastAPI, Python 3.11
 - `main.py` — app entry, CORS, PDF/preview endpoints, AI mode switch endpoints
-- `pipeline/llm_client.py` — unified LLM interface; `get_mode()` / `set_mode()` for live switching; auto-falls back to Ollama if Claude key is missing
+- `pipeline/llm_client.py` — unified LLM interface; `get_mode()` / `set_mode()` for live switching; raises descriptive `RuntimeError` on Claude failures (auth, rate-limit, timeout, network) — no silent fallback
 - `pipeline/executor.py` — iterative agent loop; entropy mandatory first; `_emit_reason()` logs every AI decision
 - `pipeline/selector.py` — one LLM call per agent step; returns `{next_tool, reasoning}`
 - `pipeline/correlator.py` — final LLM call; produces 3 hypotheses + `tool_source` on timeline events
@@ -77,7 +77,7 @@ Upload → FileTypeRouter (python-magic)
 - **Confidence scoring** is rule-based in `pipeline/confidence.py`, not LLM-generated.
 - **Volatility3 fallback**: if `vol_imageinfo` fails, `run_volatility_full()` returns cached cridex.vmem results from `tools/volatility_cache.py`.
 - **Demo sample**: `sample/cridex.vmem` (synthetic MDMP with realistic forensic strings). The "Load Demo Sample" button calls `POST /api/upload-sample`.
-- **AI mode default**: `AI_MODE=ollama` in `.env`. If `AI_MODE=claude` but no valid key is set, `llm_client` silently falls back to Ollama.
+- **AI mode default**: `AI_MODE=claude` in `.env`. If key is missing/invalid, pipeline fails with a visible error — no silent Ollama fallback. Toggle on Upload page switches mode live without restart.
 - **MITRE tactic extraction**: `correlator.py::_extract_mitre_tactics()` first uses `mitre_tactic` from timeline events; if absent, falls back to `_TECHNIQUE_TACTIC` dict to infer tactic from technique ID (e.g. `T1059` → `Execution`). This ensures the MITRE heatmap populates even when the LLM omits tactic names.
 - **Entropy tool**: always runs as the first mandatory tool (before strings/yara). Block size auto-scales to ~160 blocks regardless of file size. Thresholds: `<5.0` benign, `5–6.5` compressed, `6.5–7.2` packed, `>7.2` encrypted.
 
@@ -132,7 +132,7 @@ All tools run inside Docker. No host installation needed.
 | `ThreatRiskScore.tsx` | Animated SVG circle gauge (0–100) |
 | `ConfidenceBadge.tsx` | Inline confidence percentage badge |
 | `TerminalStream.tsx` | Live WebSocket event terminal; `llm_reason` events show as expandable purple THINK rows |
-| `BootScreen.tsx` | Initial splash screen |
+| `BootScreen.tsx` | Initial splash screen; shown once per browser session (`sessionStorage`). App content hidden (`visibility:hidden, opacity:0`) until boot completes, then fades in. |
 
 ## Adding New YARA Rules
 
@@ -148,7 +148,7 @@ Drop `.yar` files into `backend/yara_rules/`. Auto-discovered by `tools/yara_too
 
 ## Environment Variables
 
-- `AI_MODE` — `ollama` (default) or `claude`
+- `AI_MODE` — `claude` (default) or `ollama`
 - `ANTHROPIC_API_KEY` — required only if `AI_MODE=claude`, set in `.env`
 - `OLLAMA_BASE_URL` — default `http://host.docker.internal:11434`
 - `OLLAMA_MODEL` — default `llama3.2`

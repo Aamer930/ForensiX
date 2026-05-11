@@ -49,16 +49,22 @@ function App() {
       <ErrorBoundary>
         <ToastProvider>
           {!booted && <BootScreen onDone={handleBootDone} />}
-          <BrowserRouter>
-            <Routes>
-              <Route path="/"                element={<Upload />} />
-              <Route path="/history"         element={<History />} />
-              <Route path="/live/:jobId"     element={<LiveAgent />} />
-              <Route path="/results/:jobId"  element={<Results />} />
-              <Route path="/report/:jobId"   element={<Report />} />
-              <Route path="*"               element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+          <div style={{
+            opacity: booted ? 1 : 0,
+            transition: 'opacity 0.4s ease-in',
+            visibility: booted ? 'visible' : 'hidden',
+          }}>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/"                element={<Upload />} />
+                <Route path="/history"         element={<History />} />
+                <Route path="/live/:jobId"     element={<LiveAgent />} />
+                <Route path="/results/:jobId"  element={<Results />} />
+                <Route path="/report/:jobId"   element={<Report />} />
+                <Route path="*"               element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </div>
         </ToastProvider>
       </ErrorBoundary>
     </ThemeProvider>
