@@ -226,18 +226,23 @@ Full analysis completes in approximately 60 seconds. If Volatility3 cannot parse
 ```
 ForensiX/
 |-- backend/
-|   |-- pipeline/        # llm_client, executor, selector, correlator, adversary, confidence
+|   |-- pipeline/        # llm_client, executor, selector, correlator, adversary, confidence, health, router
+|   |-- routers/         # upload.py (file ingestion), ws.py (WebSocket)
 |   |-- tools/           # one module per forensic tool
 |   |-- report/          # PDF builder (ReportLab)
 |   |-- yara_rules/      # bundled YARA rule files
-|   `-- main.py          # FastAPI app entry point
+|   |-- main.py          # FastAPI app entry point
+|   |-- models.py        # Pydantic models shared across pipeline
+|   |-- job_store.py     # in-memory job state + WebSocket event buffer
+|   `-- db.py            # SQLite persistence for completed cases
 |-- frontend/
 |   `-- src/
 |       |-- pages/       # Upload, LiveAgent, Results, Report, History
 |       `-- components/  # ThreatGraph, MitreHeatmap, EntropyChart, Timeline, ...
 |-- sample/              # cridex.vmem demo artefact
 |-- docs/
-|   `-- ForensiX_Documentation.md
+|   |-- ForensiX_Documentation.md
+|   `-- screenshots/
 |-- docker-compose.yml
 `-- .env.example
 ```

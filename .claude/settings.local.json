@@ -37,7 +37,15 @@
       "Bash(python3 -c \"from PIL import ImageFont; f = ImageFont.truetype\\('/System/Library/Fonts/Menlo.ttc', 20\\); print\\('Menlo ok'\\)\")",
       "Read(//System/Library/Fonts/**)",
       "Bash(python3)",
-      "Bash(curl -s http://localhost:8000/api/jobs/bf246b8a-650e-45c9-ba59-d11ddc54f7f2)"
+      "Bash(curl -s http://localhost:8000/api/jobs/bf246b8a-650e-45c9-ba59-d11ddc54f7f2)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s http://localhost:8000/docs)",
+      "Bash(curl -s http://localhost:8000/api/ai-mode)",
+      "Bash(curl -s http://localhost:8000/api/jobs/646cb251-b1ba-4238-a28f-a45881bdb62e)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git reset *)"
     ]
   }
 }

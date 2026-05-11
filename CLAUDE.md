@@ -52,6 +52,10 @@ Upload → FileTypeRouter (python-magic)
 - `pipeline/correlator.py` — final LLM call; produces 3 hypotheses + `tool_source` on timeline events
 - `pipeline/adversary.py` — TTP-based adversary attribution; 6 hardcoded threat actor profiles
 - `pipeline/confidence.py` — rule-based confidence scorer
+- `pipeline/health.py` — backend health check endpoint
+- `pipeline/router.py` — file-type-based tool routing logic
+- `routers/upload.py` — file ingestion endpoint; triggers pipeline
+- `routers/ws.py` — WebSocket endpoint; replays buffered events on reconnect
 - `pipeline/vt_client.py` — VirusTotal API enrichment for suspicious IOCs
 - `tools/` — one file per forensic tool, each returns a `ToolOutput` Pydantic model
 - `tools/entropy_tool.py` — Shannon entropy analysis; per-block histogram + overall score + classification
@@ -76,7 +80,7 @@ Upload → FileTypeRouter (python-magic)
 - **Suspicious strings**: correlator asks the LLM to return up to 10 forensically significant strings with `value`, `reason`, and `severity` (critical/high/medium/low). Stored in `CorrelationResult.suspicious_strings`.
 - **Confidence scoring** is rule-based in `pipeline/confidence.py`, not LLM-generated.
 - **Volatility3 fallback**: if `vol_imageinfo` fails, `run_volatility_full()` returns cached cridex.vmem results from `tools/volatility_cache.py`.
-- **Demo sample**: `sample/cridex.vmem` (synthetic MDMP with realistic forensic strings). The "Load Demo Sample" button calls `POST /api/upload-sample`.
+- **Demo sample**: `sample/cridex.vmem` (real Windows XP memory image with Cridex banking trojan infection — widely used in Volatility3 tutorials). The "Load Demo Sample" button calls `POST /api/upload-sample`.
 - **AI mode default**: `AI_MODE=claude` in `.env`. If key is missing/invalid, pipeline fails with a visible error — no silent Ollama fallback. Toggle on Upload page switches mode live without restart.
 - **MITRE tactic extraction**: `correlator.py::_extract_mitre_tactics()` first uses `mitre_tactic` from timeline events; if absent, falls back to `_TECHNIQUE_TACTIC` dict to infer tactic from technique ID (e.g. `T1059` → `Execution`). This ensures the MITRE heatmap populates even when the LLM omits tactic names.
 - **Entropy tool**: always runs as the first mandatory tool (before strings/yara). Block size auto-scales to ~160 blocks regardless of file size. Thresholds: `<5.0` benign, `5–6.5` compressed, `6.5–7.2` packed, `>7.2` encrypted.
