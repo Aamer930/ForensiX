@@ -272,12 +272,12 @@ Full technical documentation including system architecture, agent decision-makin
 
 ## Team
 
-| Name | Role |
-|------|------|
-| Ahmed Aamer | |
-| Youssef Hazem | |
-| Mohamed Ahmed | |
-| Ali Hesham | |
+| Name |
+|------|
+| Ahmed Aamer | 
+| Youssef Hazem | 
+| Mohamed Ahmed | 
+| Ali Hesham | 
 
 **Supervisor:** Dr. Mohamed Hamhme  
 **Institution:** Arab Academy for Science, Technology and Maritime Transport  
