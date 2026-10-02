@@ -275,10 +275,10 @@ Full technical documentation including system architecture, agent decision-makin
 | Name |
 |------|
 | Ahmed Aamer | 
-| Youssef Hazem | 
-| Mohamed Ahmed | 
 | Ali Hesham | 
+| Mohamed Ahmed | 
+| Youssef Hazem | 
 
-**Supervisor:** Dr. Mohamed Hamhme  
+**Supervisor:** Dr. Mohamed Elhamahmy 
 **Institution:** Arab Academy for Science, Technology and Maritime Transport  
 **Programme:** Computer Science, Cyber Security
