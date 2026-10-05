@@ -276,7 +276,7 @@ Full technical documentation including system architecture, agent decision-makin
 |------|
 | Ahmed Aamer | 
 | Ali Hesham | 
-| Mohamed Ahmed | 
+| Mohamed Hussein | 
 | Youssef Hazem | 
 
 **Supervisor:** Dr. Mohamed Elhamahmy 
